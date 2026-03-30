@@ -92,6 +92,33 @@ function validateHooks() {
   const hooks = readJson(hooksPath);
   if (!hooks || !hooks.hooks) return;
 
+  const subagentStart = hooks.hooks.SubagentStart;
+  if (!Array.isArray(subagentStart)) {
+    fail('hooks.json should define SubagentStart hooks for built-in native agents');
+  } else {
+    const matchers = new Set(subagentStart.map((entry) => entry.matcher));
+    if (!matchers.has('Explore') || !matchers.has('Plan') || !matchers.has('general-purpose')) {
+      fail('hooks.json should attach SubagentStart guidance for Explore, Plan, and general-purpose');
+    } else {
+      ok('hooks SubagentStart coverage');
+    }
+  }
+
+  const subagentStop = hooks.hooks.SubagentStop;
+  const taskCompleted = hooks.hooks.TaskCompleted;
+  if (!Array.isArray(subagentStop) || !Array.isArray(taskCompleted)) {
+    fail('hooks.json should define SubagentStop and TaskCompleted guards');
+  } else {
+    const stopMatchers = new Set(subagentStop.map((entry) => entry.matcher));
+    if (!stopMatchers.has('Explore') || !stopMatchers.has('Plan') || !stopMatchers.has('general-purpose')) {
+      fail('hooks.json should attach SubagentStop quality gates for Explore, Plan, and general-purpose');
+    } else {
+      ok('hooks subagent stop guards');
+    }
+
+    ok('hooks task lifecycle guards');
+  }
+
   const preToolUse = hooks.hooks.PreToolUse;
   if (!Array.isArray(preToolUse)) {
     fail('hooks.json should define PreToolUse hooks');
@@ -170,6 +197,25 @@ function validateNativeFirstRouting() {
   }
 }
 
+function validateLifecycleScripts() {
+  const scriptPaths = [
+    join(root, 'scripts', 'subagent-context.mjs'),
+    join(root, 'scripts', 'subagent-stop.mjs'),
+    join(root, 'scripts', 'task-lifecycle.mjs'),
+    join(root, 'scripts', 'lib', 'task-quality.mjs'),
+    join(root, 'scripts', 'lib', 'subagent-quality.mjs'),
+  ];
+
+  for (const scriptPath of scriptPaths) {
+    if (!existsSync(scriptPath)) {
+      fail(`missing ${scriptPath.replace(`${root}\\`, '')}`);
+      continue;
+    }
+
+    ok(scriptPath.replace(`${root}\\`, ''));
+  }
+}
+
 validateJsonFiles();
 validatePluginManifest();
 validateHooks();
@@ -177,6 +223,7 @@ validateNoLegacyAgents();
 validateNoEmbeddedSkills();
 validateOutputStyles();
 validateNativeFirstRouting();
+validateLifecycleScripts();
 
 if (process.exitCode) {
   process.exit(process.exitCode);

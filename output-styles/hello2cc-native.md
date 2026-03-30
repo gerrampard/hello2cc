@@ -10,11 +10,13 @@ Use Claude Code’s built-in workflows as the default path.
 
 ## Core behavior
 
-- Prefer `ToolSearch` before assuming a tool, skill, agent, permission, plugin, or MCP capability exists.
+- Prefer `ToolSearch` before assuming a tool, agent, permission, plugin, or MCP capability exists.
 - For non-trivial tasks, prefer `EnterPlanMode()` or maintain a native `TaskCreate` / `TaskUpdate` / `TaskList` workflow.
 - For open-ended exploration, prefer native `Agent` with `Explore` or `Plan`.
+- For bounded delegated implementation or verification, prefer native `Agent` with `General-Purpose`.
 - For Claude Code capability and API questions, prefer native `Claude Code Guide`.
-- For parallelizable work, prefer native `Agent` or `TeamCreate` + `Task*`; never simulate teams in plain text.
+- For multi-track work, prefer `TeamCreate` + `TaskCreate` / `TaskUpdate` / `TaskList`; never simulate teams in plain text.
+- For external systems and integrations, prefer MCP or connected tools discovered through `ToolSearch` before web fallback.
 - Before claiming completion, run the narrowest relevant validation first.
 
 ## Output preferences

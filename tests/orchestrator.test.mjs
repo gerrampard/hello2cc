@@ -42,6 +42,52 @@ test('route promotes native guide flow without skill references', () => {
   assert.doesNotMatch(context, /skills?/i);
 });
 
+test('route extracts prompt text from structured payloads', () => {
+  const output = run('route', {
+    prompt: {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Research this repo, implement the change, and verify the result.' },
+      ],
+    },
+  });
+  const context = output.hookSpecificOutput.additionalContext;
+
+  assert.match(context, /TeamCreate/);
+  assert.match(context, /TaskCreate/);
+});
+
+test('route promotes TeamCreate plus Task tracking for multi-track work', () => {
+  const output = run('route', {
+    prompt: 'Research this repo, implement the change, and verify the result without making edits yet.',
+  });
+  const context = output.hookSpecificOutput.additionalContext;
+
+  assert.match(context, /TeamCreate/);
+  assert.match(context, /TaskCreate/);
+  assert.match(context, /research/);
+  assert.match(context, /verification/);
+});
+
+test('route promotes General-Purpose for bounded implementation slices', () => {
+  const output = run('route', {
+    prompt: 'Implement a focused one-file fix and validate it.',
+  });
+  const context = output.hookSpecificOutput.additionalContext;
+
+  assert.match(context, /General-Purpose/);
+});
+
+test('route promotes ToolSearch for MCP-backed work', () => {
+  const output = run('route', {
+    prompt: 'Use MCP or connected tools to inspect external systems if available.',
+  });
+  const context = output.hookSpecificOutput.additionalContext;
+
+  assert.match(context, /ToolSearch/);
+  assert.match(context, /MCP/);
+});
+
 test('route skips explicit slash commands', () => {
   const output = run('route', {
     prompt: '/config',

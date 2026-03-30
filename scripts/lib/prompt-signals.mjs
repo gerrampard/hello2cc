@@ -77,8 +77,10 @@ const SWARM_PATTERNS = [
   /in parallel/,
   /swarm/,
   /team/,
+  /teamcreate/,
   /subagent/,
   /agents?/,
+  /task(create|update|list|get|output)/,
   /frontend and backend/,
   /research and implement/,
   /implement and verify/,
@@ -90,6 +92,8 @@ const SWARM_PATTERNS = [
   /多条线/,
   /协作/,
   /分工/,
+  /任务流/,
+  /任务编排/,
 ];
 
 const VERIFY_PATTERNS = [
@@ -132,6 +136,90 @@ const COMPLEX_PATTERNS = [
   /插件/,
   /功能/,
   /工作流/,
+];
+
+const IMPLEMENT_PATTERNS = [
+  /implement/,
+  /build/,
+  /create/,
+  /add /,
+  /fix/,
+  /update/,
+  /rewrite/,
+  /refactor/,
+  /integrate/,
+  /ship/,
+  /patch/,
+  /实现/,
+  /编写/,
+  /新增/,
+  /修复/,
+  /更新/,
+  /重构/,
+  /接入/,
+  /落地/,
+];
+
+const REVIEW_PATTERNS = [
+  /review/,
+  /audit/,
+  /inspect/,
+  /check/,
+  /sanity/,
+  /regression/,
+  /code review/,
+  /pull request/,
+  /pr comments?/,
+  /审查/,
+  /审核/,
+  /复核/,
+  /检查/,
+  /验收/,
+  /回归/,
+];
+
+const MCP_PATTERNS = [
+  /\bmcp\b/,
+  /github/,
+  /jira/,
+  /slack/,
+  /figma/,
+  /sentry/,
+  /statsig/,
+  /postgres/,
+  /database/,
+  /external tool/,
+  /external system/,
+  /connected tool/,
+  /外部系统/,
+  /外部工具/,
+  /数据源/,
+  /数据库/,
+  /工单/,
+];
+
+const FRONTEND_PATTERNS = [
+  /frontend/,
+  /\bui\b/,
+  /client/,
+  /web app/,
+  /页面/,
+  /前端/,
+  /界面/,
+  /客户端/,
+];
+
+const BACKEND_PATTERNS = [
+  /backend/,
+  /\bapi\b/,
+  /server/,
+  /database/,
+  /service/,
+  /worker/,
+  /后端/,
+  /接口/,
+  /服务端/,
+  /数据库/,
 ];
 
 const TOOL_PATTERNS = [
@@ -227,19 +315,51 @@ export function classifyPrompt(prompt) {
   const text = normalizePrompt(prompt);
   const research = hasAny(text, RESEARCH_PATTERNS);
   const claudeGuide = hasQuestionIntent(text) && hasAny(text, GUIDE_PATTERNS);
+  const implement = hasAny(text, IMPLEMENT_PATTERNS);
+  const review = hasAny(text, REVIEW_PATTERNS);
+  const mcp = hasAny(text, MCP_PATTERNS);
+  const frontend = hasAny(text, FRONTEND_PATTERNS);
+  const backend = hasAny(text, BACKEND_PATTERNS);
   const complex = hasAny(text, COMPLEX_PATTERNS);
   const plan = complex || hasAny(text, PLAN_PATTERNS);
+  const verify = hasAny(text, VERIFY_PATTERNS);
+  const swarm = hasAny(text, SWARM_PATTERNS);
+
+  const tracks = [];
+  if (frontend) tracks.push('frontend');
+  if (backend) tracks.push('backend');
+  if (research && (implement || review || verify) && !tracks.includes('research')) {
+    tracks.unshift('research');
+  }
+  if (!tracks.includes('implementation') && implement && (research || verify || review)) {
+    tracks.push('implementation');
+  }
+  if (!tracks.includes('review') && review && !verify) {
+    tracks.push('review');
+  }
+  if (!tracks.includes('verification') && verify) {
+    tracks.push('verification');
+  }
+
+  const boundedImplementation = implement && !research && !swarm && tracks.length <= 1 && !frontend && !backend;
 
   return {
     diagram: hasAny(text, DIAGRAM_PATTERNS),
     research,
-    swarm: hasAny(text, SWARM_PATTERNS),
-    verify: hasAny(text, VERIFY_PATTERNS),
+    swarm,
+    verify,
     complex,
     tools: hasAny(text, TOOL_PATTERNS),
     claudeGuide,
     plan,
     taskList: plan || hasAny(text, TASK_LIST_PATTERNS),
-    toolSearchFirst: hasAny(text, TOOL_PATTERNS) || research || claudeGuide,
+    implement,
+    review,
+    mcp,
+    frontend,
+    backend,
+    tracks,
+    boundedImplementation,
+    toolSearchFirst: hasAny(text, TOOL_PATTERNS) || research || claudeGuide || mcp,
   };
 }

@@ -5,7 +5,8 @@
 它的目标不是替你绑定 provider，也不是重造一层“插件 + 一堆技能”的伪工作流，而是让**已经通过你自己的网关、provider profile、ccswitch 或模型映射层接入 Claude Code 的第三方模型**，尽可能获得接近原生 `Opus / Sonnet` 的使用体验。
 
 从 `0.0.2` 开始，主插件**不再内置任何 skills**。  
-`hello2cc` 只保留三类核心能力：
+从 `0.0.5` 开始，主插件进一步增强了**细粒度原生 Agent / TeamCreate / Task 路由**与**真实会话回归**。  
+`hello2cc` 现在聚焦四类核心能力：
 
 - 原生优先的轻量路由提示
 - 原生 `Agent` 的静默 `model` 注入
@@ -36,7 +37,10 @@
 - 先用 `ToolSearch` 判断能力是否存在，而不是靠猜
 - 复杂任务优先进入 `EnterPlanMode()` 或 `TaskCreate / TaskUpdate / TaskList`
 - 开放式探索优先使用原生 `Agent(Explore)` 或 `Agent(Plan)`
+- 边界清晰的实现 / 修复 / 验证子任务优先使用原生 `Agent(General-Purpose)`
+- 多线任务优先落到 `TeamCreate + TaskCreate / TaskUpdate / TaskList`
 - Claude Code / Agent SDK / hooks / MCP / settings 相关问题优先使用 `Agent(Claude Code Guide)`
+- 涉及外部系统、数据源和集成平台时优先使用 `ToolSearch` 发现 MCP / connected tools
 - 并行任务优先使用原生 `Agent` 或 `TeamCreate + Task*`
 - 结束前先做贴近改动范围的验证
 
@@ -82,6 +86,16 @@
 
 设置一次后，后续会话会持续生效。
 
+### 4）更细粒度的原生 Agent / Team 流程增强
+
+从 `0.0.5` 开始，`hello2cc` 不只是在主线程里提示“优先走原生能力”，还补上了更细的原生团队协作护栏：
+
+- `SubagentStart` 会给内建 `Explore`、`Plan`、`General-Purpose` 注入更贴合其职责的上下文
+- `SubagentStop` 会拦截过于空泛的子代理总结，要求输出**精确路径、结构化计划或验证证据**
+- `TaskCompleted` 会要求团队任务在完成前具备**可验证的完成证据**
+
+这样做的目标是：让第三方模型不只是“能调用原生工具”，而是**更像原生模型一样把这些工具用对、用稳、用完整**。
+
 ## 架构
 
 ```text
@@ -102,6 +116,12 @@ hello2cc
 ```
 
 从 `0.0.2` 起，主插件架构中**不再包含 `skills/`**。
+
+从 `0.0.5` 起，主插件还新增了以下原生事件增强：
+
+- `SubagentStart`
+- `SubagentStop`
+- `TaskCompleted`
 
 ## 与原生槽位映射共存
 
@@ -154,7 +174,7 @@ hello2cc
 /plugin install hello2cc@hello2cc-local
 ```
 
-如果本地已经安装过旧版本，升级到 `0.0.2` 后会得到一个**不再暴露 skills 的主插件**。
+如果本地已经安装过旧版本，升级到 `0.0.5` 后会得到一个**不再暴露 skills，且具备更细粒度原生团队路由的主插件**。
 
 ### 3）一次性启用输出风格
 
@@ -217,7 +237,18 @@ hello2cc/
 npm run validate
 npm test
 npm run check
+npm run test:real
 ```
+
+其中：
+
+- `npm run check`：校验 manifest、hooks 与单元测试
+- `npm run test:real`：调用本机已安装的 Claude Code CLI，执行真实会话回归，验证插件是否在真机会话中正确装载、暴露原生工具/Agent 能力、应用输出风格，并保持 skill-free 安装形态
+
+说明：
+
+- 当前 Claude Code `-p` headless 会话中，`UserPromptSubmit` 的 hook payload 并不稳定等于原始用户 prompt，因此 `npm run test:real` 主要验证**真实安装态、SessionStart 原生能力基线、工具/Agent 暴露面与插件缓存形态**
+- 更细粒度的 prompt 路由语义仍通过本仓库单元测试覆盖；若要验证交互式 `UserPromptSubmit` 行为，建议在本地交互会话中配合 debug 文件复核
 
 ## 当前限制
 
@@ -227,7 +258,7 @@ npm run check
 
 ## 版本
 
-当前公开版本：`0.0.2`
+当前公开版本：`0.0.5`
 
 ## 许可证
 

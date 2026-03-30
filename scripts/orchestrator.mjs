@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { configuredModels } from './lib/config.mjs';
 import { preferredModelForAgent } from './lib/agent-models.mjs';
 import { classifyPrompt, isSubagentPrompt, startsWithExplicitCommand } from './lib/prompt-signals.mjs';
@@ -18,6 +18,17 @@ function readStdinJson() {
 
 function writeJson(payload) {
   process.stdout.write(JSON.stringify(payload));
+}
+
+function maybeDumpPayload(label, payload) {
+  const dumpPath = String(process.env.HELLO2CC_DEBUG_ROUTE_PATH || '').trim();
+  if (!dumpPath) return;
+
+  try {
+    writeFileSync(dumpPath, JSON.stringify({ label, payload }, null, 2), 'utf8');
+  } catch (error) {
+    process.stderr.write(`orchestrator.mjs: failed to write debug payload: ${error.message}\n`);
+  }
 }
 
 function suppress(hookEventName, additionalContext) {
@@ -47,6 +58,49 @@ function allowWithUpdatedInput(updatedInput, reason) {
   });
 }
 
+function flattenPromptValue(value, seen = new WeakSet()) {
+  if (typeof value === 'string') return value;
+  if (!value) return '';
+  if (typeof value !== 'object') return String(value);
+  if (seen.has(value)) return '';
+
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    return value.map((item) => flattenPromptValue(item, seen)).filter(Boolean).join(' ');
+  }
+
+  const preferredKeys = ['text', 'prompt', 'message', 'content', 'input'];
+  const parts = [];
+
+  for (const key of preferredKeys) {
+    if (key in value) {
+      parts.push(flattenPromptValue(value[key], seen));
+    }
+  }
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    if (preferredKeys.includes(key)) continue;
+    parts.push(flattenPromptValue(nestedValue, seen));
+  }
+
+  return parts.filter(Boolean).join(' ');
+}
+
+function extractPromptText(payload) {
+  const candidates = [
+    payload?.prompt,
+    payload?.userPrompt,
+    payload?.message,
+    payload?.input,
+    payload?.text,
+  ];
+
+  return candidates
+    .map((candidate) => flattenPromptValue(candidate))
+    .find((text) => String(text || '').trim()) || '';
+}
+
 function buildModelPolicyLines(config) {
   if (config.routingPolicy === 'prompt-only') return [];
 
@@ -66,6 +120,26 @@ function buildModelPolicyLines(config) {
   return ['', ...lines];
 }
 
+function quoteTrack(track) {
+  return `\`${track}\``;
+}
+
+function recommendedTrackLabels(signals) {
+  if (signals.tracks?.length) return signals.tracks;
+  if (signals.research && signals.verify) return ['research', 'verification'];
+  if (signals.research && signals.implement) return ['research', 'implementation'];
+  if (signals.implement && signals.verify) return ['implementation', 'verification'];
+  return [];
+}
+
+function buildTeamStep(signals) {
+  const tracks = recommendedTrackLabels(signals);
+  if (tracks.length < 2 && !signals.swarm) return '';
+
+  const trackList = tracks.length > 0 ? tracks.map(quoteTrack).join(' / ') : '`track-1` / `track-2`';
+  return `这是多线任务：优先 \`TeamCreate\` 建立原生团队，并立即为 ${trackList} 创建独立 \`TaskCreate\`；执行中持续使用 \`TaskList\` / \`TaskUpdate\` 跟踪进度。`;
+}
+
 function buildSessionStartContext() {
   const config = configuredModels();
 
@@ -81,7 +155,9 @@ function buildSessionStartContext() {
     '- For Claude Code / Claude API / Agent SDK / hooks / MCP / settings questions, prefer native `Claude Code Guide` first and use official docs when needed.',
     '- For multi-step or cross-file work, prefer `EnterPlanMode()` or at least `TaskCreate` / `TaskUpdate` / `TaskList`.',
     '- For open-ended repository exploration after a couple of searches, prefer native `Agent` with `Explore` or `Plan`.',
+    '- For bounded delegated implementation or verification, prefer native `Agent` with `General-Purpose` over ad-hoc text delegation.',
     '- For parallelizable work, prefer native `Agent`; for sustained coordination, use `TeamCreate` plus `Task*`.',
+    '- For external systems, connected tools, or MCP-backed data sources, run `ToolSearch` first and prefer native MCP tools before web fallback.',
     '- Never roleplay agents or teams in plain text when native tools exist.',
     '- Before claiming completion, run the narrowest relevant validation first and expand only if needed.',
     '- Use aligned ASCII tables or diagrams when they genuinely improve clarity.',
@@ -108,10 +184,18 @@ function buildRouteSteps(prompt) {
     steps.push('先 `ToolSearch` 确认可用工具、原生 agent 类型、插件能力、权限与 MCP 边界，不要凭记忆猜。');
   }
 
+  if (signals.mcp) {
+    steps.push('如果任务涉及外部系统、数据源或集成平台，优先查找并调用原生 MCP / connected tools；只有在本地能力不存在时再退回网页搜索。');
+  }
+
   if (signals.claudeGuide) {
     steps.push('这是 Claude Code / Claude API / Agent SDK / hooks / settings / MCP 能力问题：优先调用原生 `Agent` 的 `Claude Code Guide`，必要时再抓取官方文档。');
   } else if (signals.research) {
     steps.push('这是研究 / 对比 / 文档任务：先定向搜索，再在需要时转原生 `Explore` 或 `Plan`。');
+  }
+
+  if (signals.boundedImplementation) {
+    steps.push('这是边界清晰的实现 / 修复 / 验证子任务：优先使用原生 `Agent` 的 `General-Purpose` 承接单一切片，而不是把探索、规划和实现都混在主线程。');
   }
 
   if (signals.complex) {
@@ -126,6 +210,11 @@ function buildRouteSteps(prompt) {
 
   if (signals.swarm) {
     steps.push('存在并行空间：优先并行调用原生 `Agent`；持续协作或共享状态时使用 `TeamCreate` + `Task*`，不要用文本模拟团队。');
+  }
+
+  const teamStep = buildTeamStep(signals);
+  if (teamStep) {
+    steps.push(teamStep);
   }
 
   if (signals.diagram) {
@@ -157,7 +246,8 @@ async function cmdSessionStart() {
 
 async function cmdRoute() {
   const payload = await readStdinJson();
-  const prompt = String(payload.prompt || '').trim();
+  maybeDumpPayload('route', payload);
+  const prompt = extractPromptText(payload).trim();
 
   if (!prompt || startsWithExplicitCommand(prompt) || isSubagentPrompt(prompt)) {
     emptySuppress();
