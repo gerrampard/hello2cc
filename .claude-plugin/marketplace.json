@@ -9,8 +9,8 @@
   "plugins": [
     {
       "name": "hello2cc",
-      "description": "Skill-free, native-first orchestration plugin for third-party models on Claude Code, with a namespaced default main agent, current-session model mirroring, and a force-for-plugin output style.",
-      "version": "0.1.3",
+      "description": "Capability-aware, native-first plugin for third-party models on Claude Code, with native tool/agent/task/team/MCP routing and concise structured output.",
+      "version": "0.2.0",
       "source": "./",
       "author": {
         "name": "hello2cc"

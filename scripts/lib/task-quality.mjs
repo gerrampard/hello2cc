@@ -2,6 +2,14 @@ function normalizeText(value) {
   return String(value || '').trim().replace(/\s+/g, ' ');
 }
 
+function hasStructuredList(text) {
+  return /(^|\n)(\d+\. |- |\* )/.test(String(text || ''));
+}
+
+function hasPathOrCommandEvidence(text) {
+  return /`[^`]+`|[A-Za-z]:\\[^ \n]+|(?:^|[\s(])[\w./-]+\.[A-Za-z0-9]+/.test(String(text || ''));
+}
+
 const VAGUE_SUBJECT_PATTERNS = [
   /^(fix|check|update|change|look|investigate|review|misc|stuff|task|work)\b/i,
   /^(修复|检查|更新|改一下|看一下|研究一下|处理一下|任务)\b/,
@@ -29,11 +37,13 @@ export function taskDescriptionTooThin(taskDescription) {
 }
 
 export function taskDescriptionHasDeliverable(taskDescription) {
-  return DELIVERABLE_PATTERNS.some((pattern) => pattern.test(normalizeText(taskDescription)));
+  const text = String(taskDescription || '');
+  return hasStructuredList(text) || hasPathOrCommandEvidence(text) || DELIVERABLE_PATTERNS.some((pattern) => pattern.test(normalizeText(text)));
 }
 
 export function taskDescriptionHasEvidence(taskDescription) {
-  return EVIDENCE_PATTERNS.some((pattern) => pattern.test(normalizeText(taskDescription)));
+  const text = String(taskDescription || '');
+  return hasPathOrCommandEvidence(text) || EVIDENCE_PATTERNS.some((pattern) => pattern.test(normalizeText(text)));
 }
 
 export function validateTaskDefinition({ task_subject: taskSubject, task_description: taskDescription }) {

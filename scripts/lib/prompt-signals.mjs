@@ -76,23 +76,16 @@ const SWARM_PATTERNS = [
   /parallel/,
   /in parallel/,
   /swarm/,
-  /team/,
   /teamcreate/,
   /subagent/,
-  /agents?/,
+  /teammate/,
   /task(create|update|list|get|output)/,
-  /frontend and backend/,
-  /research and implement/,
-  /implement and verify/,
   /多个模块/,
   /并行/,
   /同时推进/,
-  /多线程推进/,
-  /前后端/,
   /多条线/,
   /协作/,
   /分工/,
-  /任务流/,
   /任务编排/,
 ];
 
@@ -222,30 +215,24 @@ const BACKEND_PATTERNS = [
   /数据库/,
 ];
 
-const TOOL_PATTERNS = [
+const HOST_FEATURE_PATTERNS = [
   /toolsearch/,
   /enterplanmode/,
   /teamcreate/,
+  /teamdelete/,
+  /sendmessage/,
+  /askuserquestion/,
+  /enterworktree/,
   /task(create|update|list|get)/,
-  /mcp/,
-  /plugin/,
-  /skill/,
-  /subagent/,
-  /agent/,
-  /team/,
-  /hook/,
-  /claude code/,
-  /claude api/,
-  /agent sdk/,
-  /permissions?/,
-  /settings/,
-  /工具/,
-  /插件/,
-  /技能/,
-  /子代理/,
-  /团队/,
-  /权限/,
-  /配置/,
+  /taskoutput/,
+  /taskstop/,
+  /todowrite/,
+  /listmcpresources/,
+  /readmcpresource/,
+  /claude code guide/,
+  /general-purpose/,
+  /\bexplore\b/,
+  /\bplan\b/,
 ];
 
 const GUIDE_PATTERNS = [
@@ -255,19 +242,24 @@ const GUIDE_PATTERNS = [
   /agent sdk/,
   /slash command/,
   /hooks?/,
-  /mcp/,
+  /\bmcp\b/,
   /settings/,
   /permissions?/,
-  /toolsearch/,
-  /teamcreate/,
-  /task(create|update|list|get)/,
   /anthropic/,
   /命令/,
   /hook/,
-  /插件/,
-  /技能/,
   /配置/,
   /权限/,
+  /设置/,
+];
+
+const HOST_TOPIC_PATTERNS = [
+  ...HOST_FEATURE_PATTERNS,
+  ...GUIDE_PATTERNS,
+  /工具/,
+  /插件/,
+  /子代理/,
+  /任务工具/,
 ];
 
 const PLAN_PATTERNS = [
@@ -287,7 +279,6 @@ const PLAN_PATTERNS = [
   /多文件/,
   /跨文件/,
   /任务拆分/,
-  /步骤/,
 ];
 
 const TASK_LIST_PATTERNS = [
@@ -303,6 +294,41 @@ const TASK_LIST_PATTERNS = [
   /分派/,
 ];
 
+const DECISION_PATTERNS = [
+  /choose between/,
+  /which option/,
+  /which approach/,
+  /which should/i,
+  /what(?:'s| is) better/,
+  /trade[\s-]?off/,
+  /tradeoff/,
+  /recommend (?:one|an approach|a path|a direction)/,
+  /which one/,
+  /选哪个/,
+  /怎么选/,
+  /哪个更好/,
+  /取舍/,
+  /如何取舍/,
+  /权衡/,
+  /推荐哪/,
+  /推荐哪个/,
+  /方案对比/,
+];
+
+const WORKTREE_PATTERNS = [
+  /enterworktree/,
+  /git worktree/,
+  /worktree/,
+  /separate worktree/,
+  /isolated worktree/,
+  /parallel worktree/,
+  /独立工作树/,
+  /单独工作树/,
+  /并行工作树/,
+  /隔离工作树/,
+  /工作树/,
+];
+
 export function startsWithExplicitCommand(prompt) {
   return /^(~|\/)/.test(String(prompt || '').trim());
 }
@@ -314,6 +340,7 @@ export function isSubagentPrompt(prompt) {
 export function classifyPrompt(prompt) {
   const text = normalizePrompt(prompt);
   const research = hasAny(text, RESEARCH_PATTERNS);
+  const explicitHostFeature = hasAny(text, HOST_FEATURE_PATTERNS);
   const claudeGuide = hasQuestionIntent(text) && hasAny(text, GUIDE_PATTERNS);
   const implement = hasAny(text, IMPLEMENT_PATTERNS);
   const review = hasAny(text, REVIEW_PATTERNS);
@@ -321,10 +348,16 @@ export function classifyPrompt(prompt) {
   const frontend = hasAny(text, FRONTEND_PATTERNS);
   const backend = hasAny(text, BACKEND_PATTERNS);
   const complex = hasAny(text, COMPLEX_PATTERNS);
-  const plan = complex || hasAny(text, PLAN_PATTERNS);
   const verify = hasAny(text, VERIFY_PATTERNS);
-  const swarm = hasAny(text, SWARM_PATTERNS);
-  const capabilityQuery = hasAny(text, TOOL_PATTERNS) || claudeGuide || mcp;
+  const multiTrackByStructure =
+    (research && implement) ||
+    (research && verify) ||
+    (implement && verify) ||
+    (frontend && backend);
+  const plan = complex || multiTrackByStructure || hasAny(text, PLAN_PATTERNS);
+  const swarm = hasAny(text, SWARM_PATTERNS) || multiTrackByStructure;
+  const decisionHeavy = hasQuestionIntent(text) && hasAny(text, DECISION_PATTERNS);
+  const capabilityQuery = explicitHostFeature || (hasQuestionIntent(text) && hasAny(text, HOST_TOPIC_PATTERNS)) || mcp;
   const codeResearch = research && !capabilityQuery;
 
   const tracks = [];
@@ -351,7 +384,7 @@ export function classifyPrompt(prompt) {
     swarm,
     verify,
     complex,
-    tools: hasAny(text, TOOL_PATTERNS),
+    tools: explicitHostFeature,
     claudeGuide,
     plan,
     taskList: plan || hasAny(text, TASK_LIST_PATTERNS),
@@ -360,10 +393,12 @@ export function classifyPrompt(prompt) {
     mcp,
     frontend,
     backend,
+    decisionHeavy,
     capabilityQuery,
     codeResearch,
     tracks,
     boundedImplementation,
     toolSearchFirst: capabilityQuery,
+    wantsWorktree: hasAny(text, WORKTREE_PATTERNS),
   };
 }

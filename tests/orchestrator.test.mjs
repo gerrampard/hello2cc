@@ -45,7 +45,7 @@ function writeTranscript(root, sessionId, payload) {
   return transcriptPath;
 }
 
-test('session-start stays native-first and skill-free', () => {
+test('session-start keeps native-first guidance concise and skill-free', () => {
   const env = isolatedEnv();
   const output = run('session-start', {
     session_id: 'session-1',
@@ -53,11 +53,11 @@ test('session-start stays native-first and skill-free', () => {
   }, env);
   const context = output.hookSpecificOutput.additionalContext;
 
-  assert.match(context, /ToolSearch/);
-  assert.match(context, /dedicated Claude Code read \/ edit \/ write \/ search tools/i);
-  assert.match(context, /Report validation honestly/i);
-  assert.match(context, /force-for-plugin/);
-  assert.match(context, /mirror_session_model/);
+  assert.match(context, /像平常一样直接使用 Claude Code/);
+  assert.match(context, /ToolSearch 状态/);
+  assert.match(context, /EnterPlanMode\(\)/);
+  assert.match(context, /当前插件输出风格/);
+  assert.match(context, /当前会话模型别名：`opus`/);
   assert.doesNotMatch(context, /Skill\(/);
   assert.doesNotMatch(context, /skills?/i);
 });
@@ -73,9 +73,41 @@ test('session-start explains toolsearch gateway requirements when host has not e
   }, env);
   const context = output.hookSpecificOutput.additionalContext;
 
-  assert.match(context, /ToolSearch readiness/);
-  assert.match(context, /cannot force it at the plugin layer/i);
+  assert.match(context, /ToolSearch 状态/);
+  assert.match(context, /不能在插件层强行开启它/);
   assert.match(context, /ENABLE_TOOL_SEARCH=true/);
+});
+
+test('session-start surfaces advanced native capabilities when the host exposes them', () => {
+  const env = isolatedEnv();
+  const output = run('session-start', {
+    session_id: 'session-capabilities',
+    model: 'opus',
+    tools: [
+      'ToolSearch',
+      'AskUserQuestion',
+      'SendMessage',
+      'TeamDelete',
+      'ListMcpResources',
+      'ReadMcpResource',
+      'EnterWorktree',
+      'LSP',
+      'NotebookEdit',
+      'PowerShell',
+    ],
+    agents: ['Claude Code Guide', 'Explore'],
+  }, env);
+  const context = output.hookSpecificOutput.additionalContext;
+
+  assert.match(context, /AskUserQuestion/);
+  assert.match(context, /SendMessage/);
+  assert.match(context, /TeamDelete/);
+  assert.match(context, /ListMcpResources/);
+  assert.match(context, /ReadMcpResource/);
+  assert.match(context, /EnterWorktree/);
+  assert.match(context, /LSP/);
+  assert.match(context, /NotebookEdit/);
+  assert.match(context, /PowerShell/);
 });
 
 test('route promotes native guide flow without skill references', () => {
@@ -115,6 +147,7 @@ test('route extracts prompt text from structured payloads', () => {
 
   assert.match(context, /TeamCreate/);
   assert.match(context, /TaskCreate/);
+  assert.match(context, /TaskList/);
 });
 
 test('route keeps codebase research on native search tools before agent escalation', () => {
@@ -130,18 +163,20 @@ test('route keeps codebase research on native search tools before agent escalati
   assert.doesNotMatch(context, /先 `ToolSearch`/);
 });
 
-test('route promotes TeamCreate plus Task tracking for multi-track work', () => {
+test('route promotes TeamCreate plus SendMessage and TeamDelete when native team tools are exposed', () => {
   const env = isolatedEnv();
   const output = run('route', {
     session_id: 'route-team',
+    tools: ['Agent', 'TeamCreate', 'SendMessage', 'TeamDelete', 'TaskCreate', 'TaskList', 'TaskUpdate', 'TaskGet'],
+    agents: ['General-Purpose'],
     prompt: 'Research this repo, implement the change, and verify the result without making edits yet.',
   }, env);
   const context = output.hookSpecificOutput.additionalContext;
 
   assert.match(context, /TeamCreate/);
-  assert.match(context, /TaskCreate/);
-  assert.match(context, /research/);
-  assert.match(context, /verification/);
+  assert.match(context, /SendMessage/);
+  assert.match(context, /TeamDelete/);
+  assert.match(context, /TaskGet/);
 });
 
 test('route promotes General-Purpose for bounded implementation slices', () => {
@@ -155,16 +190,30 @@ test('route promotes General-Purpose for bounded implementation slices', () => {
   assert.match(context, /General-Purpose/);
 });
 
-test('route promotes ToolSearch for MCP-backed work', () => {
+test('route uses AskUserQuestion on decision-heavy tasks when the host exposes it', () => {
+  const env = isolatedEnv();
+  const output = run('route', {
+    session_id: 'route-ask-user',
+    tools: ['AskUserQuestion'],
+    prompt: 'Which approach should I choose between option A and B if there is a trade-off?',
+  }, env);
+  const context = output.hookSpecificOutput.additionalContext;
+
+  assert.match(context, /AskUserQuestion/);
+});
+
+test('route prefers MCP resource tools when the host exposes them', () => {
   const env = isolatedEnv();
   const output = run('route', {
     session_id: 'route-mcp',
+    tools: ['ToolSearch', 'ListMcpResources', 'ReadMcpResource'],
     prompt: 'Use MCP or connected tools to inspect external systems if available.',
   }, env);
   const context = output.hookSpecificOutput.additionalContext;
 
   assert.match(context, /ToolSearch/);
-  assert.match(context, /MCP/);
+  assert.match(context, /ListMcpResources/);
+  assert.match(context, /ReadMcpResource/);
 });
 
 test('route explains why toolsearch is unavailable on proxy sessions without the host gate enabled', () => {
@@ -181,6 +230,58 @@ test('route explains why toolsearch is unavailable on proxy sessions without the
   assert.match(context, /当前会话没有暴露原生 `ToolSearch`/);
   assert.match(context, /ENABLE_TOOL_SEARCH=true/);
   assert.doesNotMatch(context, /先 `ToolSearch`/);
+});
+
+test('route falls back to TodoWrite when native task tools are absent but TodoWrite exists', () => {
+  const env = isolatedEnv();
+  const output = run('route', {
+    session_id: 'route-todowrite',
+    tools: ['TodoWrite'],
+    prompt: 'Implement a multi-file change and keep a todo list for the work.',
+  }, env);
+  const context = output.hookSpecificOutput.additionalContext;
+
+  assert.match(context, /TodoWrite/);
+  assert.doesNotMatch(context, /TaskCreate/);
+});
+
+test('route falls back to parallel Agent calls when TeamCreate is unavailable', () => {
+  const env = isolatedEnv();
+  const output = run('route', {
+    session_id: 'route-no-team',
+    tools: ['Agent', 'TaskCreate', 'TaskList', 'TaskUpdate'],
+    prompt: 'Research this repo, implement the change, and verify the result.',
+  }, env);
+  const context = output.hookSpecificOutput.additionalContext;
+
+  assert.match(context, /没有 `TeamCreate`/);
+  assert.match(context, /并行原生 `Agent`/);
+});
+
+test('route avoids forcing Claude Code Guide when it is not exposed', () => {
+  const env = isolatedEnv();
+  const output = run('route', {
+    session_id: 'route-no-guide',
+    tools: ['Agent'],
+    agents: ['Explore'],
+    prompt: 'How do Claude Code hooks and MCP permissions work?',
+  }, env);
+  const context = output.hookSpecificOutput.additionalContext;
+
+  assert.match(context, /没有暴露 `Claude Code Guide`/);
+  assert.doesNotMatch(context, /优先调用原生 `Agent` 的 `Claude Code Guide`/);
+});
+
+test('route only recommends EnterWorktree when the host exposes it and the user explicitly asks', () => {
+  const env = isolatedEnv();
+  const output = run('route', {
+    session_id: 'route-worktree',
+    tools: ['EnterWorktree'],
+    prompt: 'Use a git worktree for an isolated worktree while changing this feature.',
+  }, env);
+  const context = output.hookSpecificOutput.additionalContext;
+
+  assert.match(context, /EnterWorktree/);
 });
 
 test('route skips explicit slash commands', () => {

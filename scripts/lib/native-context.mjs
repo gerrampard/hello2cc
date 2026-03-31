@@ -44,31 +44,6 @@ export function extractPromptText(payload) {
     .find((text) => String(text || '').trim()) || '';
 }
 
-function buildModelPolicyLines(config) {
-  if (config.routingPolicy === 'prompt-only') return [];
-
-  const renderModel = (value, note = '') =>
-    value ? `\`${value}\`${note ? ` ${note}` : ''}` : '`(preserve Claude Code native inherit/session behavior)`';
-
-  const lines = [
-    '## Native Agent model policy',
-    `- routing_policy: \`${config.routingPolicy}\``,
-    `- mirror_session_model: \`${config.mirrorSessionModel}\``,
-    `- session_model: \`${config.sessionModel || '(none detected yet)'}\``,
-    `- primary_model: ${renderModel(config.primaryModel, config.explicitPrimaryModel ? '(explicit)' : '')}`,
-    `- subagent_model: ${renderModel(config.subagentModel, config.explicitSubagentModel ? '(explicit or env)' : '')}`,
-    `- guide_model: ${renderModel(config.guideModel, config.explicitGuideModel ? '(explicit)' : '(defaults to current session for Claude Code Guide)')}`,
-    `- explore_model: ${renderModel(config.exploreModel, config.explicitExploreModel ? '(explicit)' : '(defaults to current session for Explore)')}`,
-    `- plan_model: ${renderModel(config.planModel, config.explicitPlanModel ? '(explicit override)' : '')}`,
-    `- general_model: ${renderModel(config.generalModel, config.explicitGeneralModel ? '(explicit override)' : '')}`,
-    `- team_model: ${renderModel(config.teamModel, config.explicitTeamModel ? '(explicit override)' : '')}`,
-    '- hello2cc only injects `Agent.model` when the host would otherwise fall back to a non-native default (for example `Claude Code Guide` / `Explore`) or when you explicitly configured an override.',
-    '- If a native `Agent` call already sets `model`, hello2cc does not override it.',
-  ];
-
-  return ['', ...lines];
-}
-
 function envValue(name) {
   return String(process.env[name] || '').trim();
 }
@@ -108,27 +83,228 @@ function toolSearchStatus(sessionContext = {}) {
   };
 }
 
+function capabilityState(sessionContext, key) {
+  return typeof sessionContext?.[key] === 'boolean' ? sessionContext[key] : null;
+}
+
+function optimisticCapability(sessionContext, key, fallback = true) {
+  const value = capabilityState(sessionContext, key);
+  return value === null ? fallback : value;
+}
+
+function formatNames(values) {
+  return values.map((value) => `\`${value}\``).join(', ');
+}
+
+function detectedTools(sessionContext = {}) {
+  return Array.isArray(sessionContext?.toolNames) ? sessionContext.toolNames.filter(Boolean) : [];
+}
+
+function detectedAgents(sessionContext = {}) {
+  return Array.isArray(sessionContext?.agentTypes) ? sessionContext.agentTypes.filter(Boolean) : [];
+}
+
+function buildObservedSurfaceLines(sessionContext = {}) {
+  const tools = detectedTools(sessionContext);
+  const agents = detectedAgents(sessionContext);
+
+  if (tools.length === 0 && agents.length === 0) {
+    return [
+      '## 当前会话能力',
+      '- Claude Code 还没有在 hook 负载里显式暴露本会话的能力清单；正常工作即可，看到原生工具或原生 agent 时优先使用，不要凭空假设。',
+    ];
+  }
+
+  const lines = ['## 当前会话能力'];
+  if (tools.length) {
+    lines.push(`- 已观测到的原生工具：${formatNames(tools)}。`);
+  }
+  if (agents.length) {
+    lines.push(`- 已观测到的内建 agent：${formatNames(agents)}。`);
+  }
+  return lines;
+}
+
+function buildSessionModelLines(sessionContext = {}) {
+  const config = configuredModels(sessionContext);
+  const lines = ['## 会话使用方式'];
+
+  lines.push('- 像平常一样直接使用 Claude Code；不需要额外手动加载，也不需要切换到另一套工作流。');
+  lines.push('- 保持简洁、结构化、行动优先；对比、清单、验证结果、任务分工能用表格就用表格。');
+
+  if (config.sessionModel) {
+    lines.push(`- 当前会话模型别名：\`${config.sessionModel}\`。`);
+  }
+
+  if (config.routingPolicy === 'prompt-only') {
+    lines.push('- 当前仅做原生能力引导，不会改写原生工具输入。');
+  } else {
+    lines.push('- 当 `Claude Code Guide` 或 `Explore` 没有显式 `model` 且宿主可能走偏时，优先保持与当前会话模型一致。');
+  }
+
+  lines.push('- 如果原生工具调用里已经显式传入 `model`，始终以显式值为准。');
+  return lines;
+}
+
+function buildWorkingHabitLines(sessionContext = {}) {
+  const lines = [
+    '## 原生工作习惯',
+    '- Trivial、低风险修改直接做；改代码前先读相关文件，优先改已有文件而不是新建文件。',
+    '- 有专用读写/搜索工具时优先用专用工具，再考虑 shell。',
+    '- 多个独立操作可以并行时就并行。',
+    '- 验证要诚实：没跑就明确说没跑，失败就直接说失败。',
+  ];
+
+  if (optimisticCapability(sessionContext, 'claudeCodeGuideAvailable', true)) {
+    lines.push('- 遇到 Claude Code / hooks / MCP / settings / permissions / Agent SDK 类问题，优先用 `Claude Code Guide`。');
+  } else {
+    lines.push('- 当前会话未暴露 `Claude Code Guide` 时，直接查官方文档、本地配置和项目内说明。');
+  }
+
+  if (optimisticCapability(sessionContext, 'askUserQuestionAvailable', false)) {
+    lines.push('- 如果进度只被一个真实用户选择阻塞，优先用 `AskUserQuestion`，不要把确认点埋在长段落里。');
+  } else {
+    lines.push('- 如果进度只被一个真实用户选择阻塞，就提一个简短明确的问题，不要一次堆多个确认点。');
+  }
+
+  if (optimisticCapability(sessionContext, 'taskToolAvailable', true)) {
+    if (optimisticCapability(sessionContext, 'enterPlanModeAvailable', true)) {
+      lines.push('- 非 trivial 任务优先 `EnterPlanMode()`，否则至少维护原生 `Task*` 跟踪。');
+    } else {
+      lines.push('- 非 trivial 任务至少维护原生 `Task*` 跟踪，不要只在正文里口头列步骤。');
+    }
+  } else if (optimisticCapability(sessionContext, 'todoWriteAvailable', false)) {
+    lines.push('- 当前会话没有原生 `Task*` 时，用 `TodoWrite` 维护清单，而不是把计划散落在正文里。');
+  }
+
+  if (optimisticCapability(sessionContext, 'sendMessageAvailable', false)) {
+    lines.push('- 原生 teammate / team 已启动后，补充指令优先用 `SendMessage`，不要重复整段背景。');
+  }
+
+  if (optimisticCapability(sessionContext, 'teamDeleteAvailable', false)) {
+    lines.push('- 原生团队完成后及时 `TeamDelete`，避免留下无用团队状态。');
+  }
+
+  if (
+    optimisticCapability(sessionContext, 'listMcpResourcesAvailable', false) ||
+    optimisticCapability(sessionContext, 'readMcpResourceAvailable', false)
+  ) {
+    lines.push('- 遇到 MCP / connected tools 数据源时，优先 `ListMcpResources` / `ReadMcpResource` 再决定后续动作。');
+  } else {
+    lines.push('- 遇到外部系统、集成平台或数据源时，优先原生 MCP / connected tools，再考虑网页搜索。');
+  }
+
+  if (optimisticCapability(sessionContext, 'enterWorktreeAvailable', false)) {
+    lines.push('- 只有用户明确要求隔离工作树、分支式隔离或并行工作区时，才使用 `EnterWorktree`。');
+  }
+
+  if (optimisticCapability(sessionContext, 'lspAvailable', false)) {
+    lines.push('- 有 `LSP` 时优先做符号级导航、诊断和定位。');
+  }
+
+  if (optimisticCapability(sessionContext, 'notebookEditAvailable', false)) {
+    lines.push('- 遇到 notebook 任务时优先用 `NotebookEdit`。');
+  }
+
+  if (optimisticCapability(sessionContext, 'briefAvailable', false)) {
+    lines.push('- 需要给用户短通知或阶段性状态时，优先简短、清晰、面向结果。');
+  }
+
+  if (optimisticCapability(sessionContext, 'powerShellAvailable', false)) {
+    lines.push('- 需要真实终端操作时再用 `PowerShell`，不要拿它代替已有专用工具。');
+  }
+
+  return lines;
+}
+
 function buildToolSearchLines(sessionContext = {}) {
   const status = toolSearchStatus(sessionContext);
 
   if (status.available) {
     return [
-      '## ToolSearch readiness',
-      '- hello2cc only promotes native `ToolSearch` when the Claude Code host actually exposes it for the current session.',
-      ...(status.observed ? ['- Current session status: `ToolSearch` is exposed by the host and can be used for capability discovery.'] : []),
+      '## ToolSearch 状态',
+      '- 当会话暴露原生 `ToolSearch` 时，优先用它确认可用工具、agent、插件能力、权限和 MCP 边界。',
+      ...(status.observed ? ['- 当前会话已确认暴露 `ToolSearch`。'] : []),
     ];
   }
 
   return [
-    '## ToolSearch readiness',
-    '- Current session status: native `ToolSearch` is not exposed, so hello2cc cannot force it at the plugin layer.',
-    '- If you use a third-party gateway or `ANTHROPIC_BASE_URL`, set `ENABLE_TOOL_SEARCH=true` (or `auto` / `auto:N`) in Claude Code settings or the launch environment.',
-    '- Your gateway must forward beta headers and `tool_reference` blocks; otherwise Claude Code will still suppress true ToolSearch / defer-loading behavior.',
+    '## ToolSearch 状态',
+    '- 当前会话没有暴露原生 `ToolSearch`；hello2cc 不能在插件层强行开启它。',
+    '- 如果你正在通过第三方网关使用 Claude Code，请确认 `ENABLE_TOOL_SEARCH=true`，并确保网关透传 beta headers 与 `tool_reference` blocks。',
   ];
 }
 
-function quoteTrack(track) {
-  return `\`${track}\``;
+function routeAvailability(sessionContext = {}) {
+  const taskToolState = capabilityState(sessionContext, 'taskToolAvailable');
+  const taskFallback = taskToolState === null ? true : taskToolState;
+
+  return {
+    agent: optimisticCapability(sessionContext, 'agentToolAvailable', true),
+    askUserQuestion: optimisticCapability(sessionContext, 'askUserQuestionAvailable', false),
+    brief: optimisticCapability(sessionContext, 'briefAvailable', false),
+    claudeCodeGuide: optimisticCapability(sessionContext, 'claudeCodeGuideAvailable', true),
+    enterPlanMode: optimisticCapability(sessionContext, 'enterPlanModeAvailable', true),
+    enterWorktree: optimisticCapability(sessionContext, 'enterWorktreeAvailable', false),
+    explore: optimisticCapability(sessionContext, 'exploreAgentAvailable', true),
+    general: optimisticCapability(sessionContext, 'generalPurposeAgentAvailable', true),
+    listMcpResources: optimisticCapability(sessionContext, 'listMcpResourcesAvailable', false),
+    plan: optimisticCapability(sessionContext, 'planAgentAvailable', true),
+    readMcpResource: optimisticCapability(sessionContext, 'readMcpResourceAvailable', false),
+    sendMessage: optimisticCapability(sessionContext, 'sendMessageAvailable', false),
+    taskCreate: optimisticCapability(sessionContext, 'taskCreateAvailable', taskFallback),
+    taskGet: optimisticCapability(sessionContext, 'taskGetAvailable', false),
+    taskList: optimisticCapability(sessionContext, 'taskListAvailable', taskFallback),
+    taskTool: taskFallback,
+    taskUpdate: optimisticCapability(sessionContext, 'taskUpdateAvailable', taskFallback),
+    teamCreate: optimisticCapability(sessionContext, 'teamCreateAvailable', true),
+    teamDelete: optimisticCapability(sessionContext, 'teamDeleteAvailable', false),
+    todoWrite: optimisticCapability(sessionContext, 'todoWriteAvailable', false),
+  };
+}
+
+function buildTaskPlanningStep(availability) {
+  if (availability.taskTool) {
+    const planningPrefix = availability.enterPlanMode
+      ? '先 `EnterPlanMode()`，或至少用 `TaskCreate` / `TaskList` / `TaskUpdate` 建立可追踪任务。'
+      : '用 `TaskCreate` / `TaskList` / `TaskUpdate` 建立可追踪任务。';
+
+    if (availability.taskGet && availability.taskUpdate) {
+      return `这是非 trivial 实现：${planningPrefix} 更新任务前先 \`TaskGet\` 读取当前状态。`;
+    }
+
+    return `这是非 trivial 实现：${planningPrefix}`;
+  }
+
+  if (availability.todoWrite) {
+    if (availability.enterPlanMode) {
+      return '这是非 trivial 实现：先 `EnterPlanMode()`；如果当前会话没有原生 `Task*`，至少用 `TodoWrite` 维护清单。';
+    }
+
+    return '这是非 trivial 实现：当前会话没有原生 `Task*`，改用 `TodoWrite` 维护清单，不要只在正文里口头列步骤。';
+  }
+
+  if (availability.enterPlanMode) {
+    return '这是非 trivial 实现：先 `EnterPlanMode()`，再用简短有序清单承接执行。';
+  }
+
+  return '这是非 trivial 实现：先写出简短有序清单，再开始编辑。';
+}
+
+function buildTaskTrackingStep(availability) {
+  if (availability.taskTool) {
+    const base = '该任务适合显式拆解：维护 `TaskCreate` / `TaskList` / `TaskUpdate`，不要只在正文里口头列步骤。';
+    if (availability.taskGet && availability.taskUpdate) {
+      return `${base} 更新前先 \`TaskGet\` 看当前任务状态。`;
+    }
+    return base;
+  }
+
+  if (availability.todoWrite) {
+    return '该任务适合显式拆解：当前没有原生 `Task*` 时，用 `TodoWrite` 维护清单。';
+  }
+
+  return '该任务适合显式拆解：请保持简短、编号化的执行清单。';
 }
 
 function recommendedTrackLabels(signals) {
@@ -139,60 +315,108 @@ function recommendedTrackLabels(signals) {
   return [];
 }
 
-function buildTeamStep(signals) {
+function buildSwarmStep(signals, availability) {
   const tracks = recommendedTrackLabels(signals);
-  if (tracks.length < 2 && !signals.swarm) return '';
+  const trackList = tracks.length > 0
+    ? tracks.map((track) => `\`${track}\``).join(' / ')
+    : '`track-1` / `track-2`';
 
-  const trackList = tracks.length > 0 ? tracks.map(quoteTrack).join(' / ') : '`track-1` / `track-2`';
-  return `这是多线任务：优先 \`TeamCreate\` 建立原生团队，并立即为 ${trackList} 创建独立 \`TaskCreate\`；执行中持续使用 \`TaskList\` / \`TaskUpdate\` 跟踪进度。`;
+  if (!availability.agent) {
+    return '';
+  }
+
+  if (!availability.teamCreate) {
+    const lines = [
+      `当前会话没有 \`TeamCreate\`：改用并行原生 \`Agent\` 调用推进 ${trackList}。`,
+    ];
+
+    if (availability.taskTool && availability.taskList) {
+      lines.push('通过 `TaskList` 查看可领任务，优先从低编号、未认领任务开始。');
+    } else if (availability.todoWrite) {
+      lines.push('用 `TodoWrite` 记录并行轨道，而不是在正文里模拟团队。');
+    }
+
+    return lines.join(' ');
+  }
+
+  const lines = [
+    `这是多线任务：优先 \`TeamCreate\` 建立原生团队，并为 ${trackList} 创建独立任务。`,
+  ];
+
+  if (availability.taskTool && availability.taskList) {
+    lines.push('执行中持续使用 `TaskList` 观察待领任务，优先认领编号更低、依赖更少的任务。');
+  }
+
+  if (availability.taskTool && availability.taskUpdate) {
+    lines.push('任务推进时及时 `TaskUpdate`。');
+  }
+
+  if (availability.taskTool && availability.taskGet) {
+    lines.push('更新或续派前先 `TaskGet` 读取任务详情。');
+  }
+
+  if (availability.sendMessage) {
+    lines.push('需要补充指令、修正范围或续派时用 `SendMessage`。');
+  }
+
+  if (availability.teamDelete) {
+    lines.push('团队完成后用 `TeamDelete` 清理。');
+  }
+
+  return lines.join(' ');
+}
+
+function buildResearchStep(signals, availability) {
+  if (signals.claudeGuide) {
+    if (availability.agent && availability.claudeCodeGuide) {
+      return '这是 Claude Code / Claude API / Agent SDK / hooks / settings / MCP 能力问题：优先调用原生 `Agent` 的 `Claude Code Guide`。';
+    }
+
+    return '这是 Claude Code / 配置 / 能力问题：当前会话没有暴露 `Claude Code Guide` 时，直接查官方文档、本地配置和项目内说明。';
+  }
+
+  if (signals.codeResearch) {
+    if (availability.agent && (availability.explore || availability.plan)) {
+      return '这是代码库研究 / 定位任务：先用原生读写 / 搜索工具缩小范围，再在需要更大搜索面时转原生 `Explore` 或 `Plan`。';
+    }
+
+    return '这是代码库研究 / 定位任务：优先用原生读写 / 搜索工具缩小范围。';
+  }
+
+  if (!signals.research) {
+    return '';
+  }
+
+  if (availability.agent && (availability.explore || availability.plan)) {
+    return '这是研究 / 对比 / 文档任务：先做定向搜索与证据收集，再在需要扩大搜索面时转原生 `Explore` 或 `Plan`。';
+  }
+
+  return '这是研究 / 对比 / 文档任务：先做定向搜索与证据收集。';
 }
 
 export function buildSessionStartContext(sessionContext = {}) {
-  const config = configuredModels(sessionContext);
-
   return [
     '# hello2cc',
     '',
-    'hello2cc is a thin, native-first Claude Code plugin for GPT and other third-party models routed through Claude Code.',
-    'Its job is to preserve Claude Code’s built-in workflows with a namespaced default main agent, minimal native-agent model injection, current-session mirroring, and a forced plugin output style.',
+    'hello2cc 会让你在 Claude Code 里尽量按原生方式工作：优先原生工具、原生 agent、原生 task/team 流程，以及简洁结构化输出。',
     '',
-    '## Default posture',
-    '- Trivial, low-risk edits: do them directly.',
-    '- Read relevant files before changing code, and prefer editing existing files over creating new ones unless a new file is truly required.',
-    '- Prefer dedicated Claude Code read / edit / write / search tools over shell commands whenever a dedicated tool exists.',
-    '- If independent tool calls do not depend on each other, run them in parallel.',
-    '- If you are unsure whether a tool, plugin, agent type, permission, or MCP capability exists, run `ToolSearch` before guessing.',
-    '- For Claude Code / Claude API / Agent SDK / hooks / MCP / settings questions, prefer native `Claude Code Guide` first and use official docs when needed.',
-    '- For multi-step or cross-file work, prefer `EnterPlanMode()` or at least `TaskCreate` / `TaskUpdate` / `TaskList`.',
-    '- For repository understanding, start with native search / read tools and move to native `Agent` with `Explore` or `Plan` when the search surface becomes wider.',
-    '- For bounded delegated implementation or verification, prefer native `Agent` with `General-Purpose` over ad-hoc text delegation.',
-    '- For parallelizable work, prefer native `Agent`; for sustained coordination, use `TeamCreate` plus `Task*` rather than roleplaying a team in prose.',
-    '- For external systems, connected tools, or MCP-backed data sources, run `ToolSearch` first and prefer native MCP tools before web fallback.',
-    '- Never roleplay agents or teams in plain text when native tools exist.',
-    '- Avoid speculative abstractions, one-off helpers, or defensive complexity for scenarios that cannot actually happen.',
-    '- Before claiming completion, run the narrowest relevant validation first and expand only if needed.',
-    '- Report validation honestly: if a check was not run or failed, say so plainly.',
-    '- Prefer Markdown or aligned ASCII tables for comparisons, inventories, task matrices, validation summaries, and option trade-offs when they improve scanability.',
+    ...buildSessionModelLines(sessionContext),
     '',
-    '## Built-in agent types',
-    '- `Explore`',
-    '- `Plan`',
-    '- `General-Purpose` (internal id `general-purpose`)',
-    '- `Claude Code Guide` (internal id `claude-code-guide`)',
+    ...buildWorkingHabitLines(sessionContext),
     '',
-    '## Plugin output style',
-    `- force-for-plugin output style: \`${FORCED_OUTPUT_STYLE_NAME}\``,
-    '- On Claude Code builds that support plugin output-style forcing, hello2cc applies its thin native-first style without mutating user settings files.',
-    '- The style is intentionally thin: keep Claude Code native behavior, restate only a minimal host-parity tasking subset, favor concise structured output, and use tables where they improve scanability.',
+    ...buildObservedSurfaceLines(sessionContext),
     '',
     ...buildToolSearchLines(sessionContext),
     '',
-    ...buildModelPolicyLines(config),
+    '## 输出风格',
+    `- 当前插件输出风格：\`${FORCED_OUTPUT_STYLE_NAME}\`。`,
+    '- 保持简洁、结构化、行动优先；清单、对比、验证结果和任务分工优先用表格呈现。',
   ].join('\n');
 }
 
 export function buildRouteSteps(prompt, sessionContext = {}) {
   const signals = classifyPrompt(prompt);
+  const availability = routeAvailability(sessionContext);
   const config = configuredModels(sessionContext);
   const toolSearch = toolSearchStatus(sessionContext);
   const steps = [];
@@ -204,38 +428,57 @@ export function buildRouteSteps(prompt, sessionContext = {}) {
   }
 
   if (signals.mcp) {
-    steps.push('如果任务涉及外部系统、数据源或集成平台，优先查找并调用原生 MCP / connected tools；只有在本地能力不存在时再退回网页搜索。');
+    if (availability.listMcpResources || availability.readMcpResource) {
+      steps.push('如果任务涉及外部系统、数据源或集成平台，优先 `ListMcpResources` 盘点资源，再按需 `ReadMcpResource` 或调用对应 MCP / connected tools；只有本地能力不存在时再退回网页搜索。');
+    } else {
+      steps.push('如果任务涉及外部系统、数据源或集成平台，优先查找并调用原生 MCP / connected tools；只有在本地能力不存在时再退回网页搜索。');
+    }
   }
 
-  if (signals.claudeGuide) {
-    steps.push('这是 Claude Code / Claude API / Agent SDK / hooks / settings / MCP 能力问题：优先调用原生 `Agent` 的 `Claude Code Guide`，必要时再抓取官方文档。');
-  } else if (signals.codeResearch) {
-    steps.push('这是代码库研究 / 定位任务：先用原生读写 / 搜索工具缩小范围，再在需要更大搜索面时转原生 `Explore` 或 `Plan`。');
-  } else if (signals.research) {
-    steps.push('这是研究 / 对比 / 文档任务：先做定向搜索与证据收集，再在需要时转原生 `Explore` 或 `Plan`。');
+  const researchStep = buildResearchStep(signals, availability);
+  if (researchStep) {
+    steps.push(researchStep);
   }
 
-  if (signals.boundedImplementation) {
+  if (signals.boundedImplementation && availability.agent && availability.general) {
     steps.push('这是边界清晰的实现 / 修复 / 验证子任务：优先使用原生 `Agent` 的 `General-Purpose` 承接单一切片，而不是把探索、规划和实现都混在主线程。');
   }
 
   if (signals.complex) {
-    steps.push('这是非 trivial 实现：先 `EnterPlanMode()`，或至少用 `TaskCreate` / `TaskUpdate` / `TaskList` 建立可追踪任务，再开始编辑。');
+    steps.push(buildTaskPlanningStep(availability));
   }
 
   if (signals.plan) {
-    steps.push('任务存在跨文件、架构取舍或多个阶段：优先计划模式；如果不进入计划模式，也要维护原生任务清单。');
+    if (availability.taskTool || availability.todoWrite || availability.enterPlanMode) {
+      steps.push('任务存在跨文件、架构取舍或多个阶段：优先计划模式；如果不进入计划模式，也要维护可追踪任务清单。');
+    } else {
+      steps.push('任务存在跨文件、架构取舍或多个阶段：先写出有序计划，再逐步执行。');
+    }
   } else if (signals.taskList) {
-    steps.push('该任务适合显式拆解：优先维护 `TaskCreate` / `TaskUpdate` / `TaskList`，不要只在正文里口头列步骤。');
+    steps.push(buildTaskTrackingStep(availability));
+  }
+
+  if (signals.decisionHeavy) {
+    if (availability.askUserQuestion) {
+      steps.push('如果执行过程中出现单一真实阻塞选择，优先用 `AskUserQuestion` 发起结构化选择，不要把确认埋在长段落里。');
+    } else {
+      steps.push('如果执行过程中出现单一真实阻塞选择，就提一个简短明确的问题，不要堆多个确认点。');
+    }
   }
 
   if (signals.swarm) {
-    steps.push('存在并行空间：先拆出独立 `Task*`，再并行调用原生 `Agent`；持续协作或共享状态时使用 `TeamCreate` + `Task*`，不要用文本模拟团队。');
+    const swarmStep = buildSwarmStep(signals, availability);
+    if (swarmStep) {
+      steps.push(swarmStep);
+    }
   }
 
-  const teamStep = buildTeamStep(signals);
-  if (teamStep) {
-    steps.push(teamStep);
+  if (signals.wantsWorktree) {
+    if (availability.enterWorktree) {
+      steps.push('用户明确要求隔离工作树：只有确实需要隔离工作区、分支式实验或并行修改时才进入 `EnterWorktree`。');
+    } else {
+      steps.push('用户提到了隔离工作树，但当前会话没有暴露 `EnterWorktree`；说明限制后在当前工作区继续，除非宿主后来显式提供该能力。');
+    }
   }
 
   if (signals.diagram) {
@@ -247,7 +490,7 @@ export function buildRouteSteps(prompt, sessionContext = {}) {
   }
 
   if (config.routingPolicy !== 'prompt-only') {
-    steps.push('如果原生 `Agent` 调用命中了 `Claude Code Guide` / `Explore` 等非原生默认模型路径，hello2cc 会优先镜像当前会话模型别名；只有显式配置了覆盖项时才会扩大注入范围。显式传入的 `model` 永远优先。');
+    steps.push('如果原生 `Agent` 调用命中了 `Claude Code Guide` / `Explore` 等路径且没有显式 `model`，优先与当前会话模型保持一致；显式传入的 `model` 永远优先。');
   }
 
   if (steps.length === 0) return '';

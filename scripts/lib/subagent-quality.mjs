@@ -6,12 +6,16 @@ function hasPathEvidence(text) {
   return /`[^`]+`|[A-Za-z]:\\[^ \n]+|(?:^|[\s(])[\w./-]+\.[A-Za-z0-9]+/.test(text);
 }
 
+function hasStructuredList(text) {
+  return /(^|\n)(\d+\. |- |\* )/.test(text);
+}
+
 function hasValidationEvidence(text) {
-  return /test|verify|validated|validation|check|checked|lint|build|review|acceptance|evidence|验证|测试|检查|回归|验收/i.test(text);
+  return hasStructuredList(text) || /test|verify|validated|validation|check|checked|lint|build|review|acceptance|evidence|验证|测试|检查|回归|验收/i.test(text);
 }
 
 function hasPlanStructure(text) {
-  return /(^|\n)(\d+\. |- )/.test(text) || /phase|step|risk|acceptance|并行|阶段|步骤|风险|验证/i.test(text);
+  return hasStructuredList(text) || /phase|step|risk|acceptance|并行|阶段|步骤|风险|验证/i.test(text);
 }
 
 function looksBlocked(text) {

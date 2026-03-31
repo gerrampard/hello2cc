@@ -19,7 +19,6 @@ export function canonicalAgentType(input) {
     'general-purpose',
     'general-purpose-agent',
     'generalpurpose',
-    'general',
   ].includes(slug)) {
     return 'general-purpose';
   }
@@ -28,7 +27,6 @@ export function canonicalAgentType(input) {
     'claude-code-guide',
     'claude-code-guide-agent',
     'claude-guide',
-    'guide',
     'claudecodeguide',
   ].includes(slug)) {
     return 'claude-code-guide';

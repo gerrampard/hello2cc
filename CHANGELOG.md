@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0 - 2026-04-01
+
+- Reworked hello2cc toward a more capability-aware native parity model so session guidance now prioritizes observed tool and agent exposure over broad keyword-triggered routing
+- Expanded native-first routing to cover `AskUserQuestion`, `SendMessage`, `TeamDelete`, `TaskGet`, `TodoWrite` fallback, `ListMcpResources`, `ReadMcpResource`, and explicit-only `EnterWorktree` handling when those capabilities are actually exposed by the host
+- Tightened prompt intent classification to reduce over-broad keyword heuristics, especially for decision routing and worktree routing, and shifted more multi-track detection to structural signals
+- Reduced overly broad agent alias normalization so model injection stays closer to real host agent identities instead of fuzzy aliases
+- Strengthened quality gates for task and subagent completion by accepting more structure-based evidence (lists, paths, commands) instead of relying only on wording cues
+- Refreshed the default main-agent overlay, forced output style guidance, README, and test coverage to reflect the quieter capability-aware native-first behavior
+
 ## 0.1.3 - 2026-03-31
 
 - Added a GitHub Actions npm publishing pipeline at `.github/workflows/publish.yml`, aligned with the helloloop release flow and supporting both tag-triggered releases and manual dispatch

@@ -1,4 +1,10 @@
 import { readPluginDataJson, writePluginDataJson } from './plugin-data.mjs';
+import {
+  deriveAgentCapabilities,
+  deriveToolCapabilities,
+  normalizeAgentTypes,
+  normalizeToolNames,
+} from './session-capabilities.mjs';
 import { extractSessionContextFromTranscript } from './transcript-context.mjs';
 
 const SESSION_STATE_PATH = 'runtime/session-context.json';
@@ -43,12 +49,8 @@ export function clearAllSessionContexts() {
 
 export function sessionContextFromPayload(payload = {}) {
   const sessionId = normalizeSessionId(payload?.session_id);
-  const tools = Array.isArray(payload?.tools)
-    ? payload.tools.map((tool) => String(tool || '').trim()).filter(Boolean)
-    : [];
-  const agents = Array.isArray(payload?.agents)
-    ? payload.agents.map((agent) => String(agent || '').trim()).filter(Boolean)
-    : [];
+  const tools = normalizeToolNames(payload?.tools);
+  const agents = normalizeAgentTypes(payload?.agents);
 
   return {
     ...extractSessionContextFromTranscript(payload?.transcript_path, sessionId),
@@ -56,13 +58,11 @@ export function sessionContextFromPayload(payload = {}) {
     ...(String(payload?.output_style || '').trim() ? { outputStyle: String(payload.output_style).trim() } : {}),
     ...(tools.length ? {
       toolNames: tools,
-      toolSearchAvailable: tools.includes('ToolSearch'),
-      teamCreateAvailable: tools.includes('TeamCreate'),
-      taskToolAvailable: tools.includes('Task') || tools.includes('TaskCreate'),
+      ...deriveToolCapabilities(tools),
     } : {}),
     ...(agents.length ? {
       agentTypes: agents,
-      claudeCodeGuideAvailable: agents.includes('claude-code-guide'),
+      ...deriveAgentCapabilities(agents),
     } : {}),
   };
 }
@@ -88,13 +88,11 @@ export function rememberSessionContext(payload) {
       ...(outputStyle ? { outputStyle } : {}),
       ...(toolNames.length ? {
         toolNames,
-        toolSearchAvailable: Boolean(context.toolSearchAvailable),
-        teamCreateAvailable: Boolean(context.teamCreateAvailable),
-        taskToolAvailable: Boolean(context.taskToolAvailable),
+        ...deriveToolCapabilities(toolNames),
       } : {}),
       ...(agentTypes.length ? {
         agentTypes,
-        claudeCodeGuideAvailable: Boolean(context.claudeCodeGuideAvailable),
+        ...deriveAgentCapabilities(agentTypes),
       } : {}),
       updatedAt: new Date().toISOString(),
     },
