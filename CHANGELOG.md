@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Added a GitHub Actions npm publishing pipeline at `.github/workflows/publish.yml`, aligned with the helloloop release flow and supporting both tag-triggered releases and manual dispatch
+- Added npm publish metadata in `package.json` and release documentation in `README.md`, including support for both `NPM_TOKEN` and trusted-publishing based automation
+
 ## 0.1.1 - 2026-03-31
 
 - Rebuilt more of Claude Code's host-side tasking guidance into the forced plugin output style so third-party models keep stronger native habits even when plugin output styles replace part of the host prompt composition

@@ -431,6 +431,62 @@ npm run test:real
 
 ---
 
+## npm 自动发布
+
+hello2cc 现在已经补齐了和 `helloloop` 同类的 GitHub Actions 自动发布链路：
+
+- 工作流文件：`.github/workflows/publish.yml`
+- 触发方式：
+  - 推送 `v*` tag 时自动发布
+  - 也支持手动 `workflow_dispatch`，直接指定 tag
+- 发布通道：
+  - `vX.Y.Z` → `latest`
+  - `vX.Y.Z-beta.N` → `beta`
+- 发布前检查：
+  - `package.json` 版本必须和 tag 基础版本一致
+  - `.claude-plugin/plugin.json` 版本必须和 tag 基础版本一致
+  - `repository.url` 必须和当前 GitHub 仓库一致
+  - 自动执行 `npm run check`
+  - 自动执行 `npm pack --dry-run`
+- 发布后动作：
+  - 自动创建或更新同名 GitHub Release
+
+### 认证方式
+
+工作流同时支持两种 npm 发布认证路径：
+
+1. `NPM_TOKEN` 仓库 secret  
+   适合首发阶段，最直接。
+
+2. npm Trusted Publishing（GitHub OIDC）  
+   适合后续长期自动发布，不需要长期保存 npm token。
+
+### 首次发布注意事项
+
+由于当前 `hello2cc` 这个 npm 包还没有发布记录，**首次发布通常需要先完成一次 npm 侧的认证/bootstrap**。常见做法有两种：
+
+- 先在 GitHub 仓库里配置 `NPM_TOKEN` secret，再通过 workflow 发首个版本
+- 或者先完成一次首发，再把该仓库接到 npm 的 trusted publishing，后续改为无 token 自动发布
+
+如果仓库里既没有 `NPM_TOKEN`，npm 侧又还没配好 trusted publishing，那么 workflow 会进入发布步骤，但 npm 会拒绝真正发布。
+
+### 推荐发布流程
+
+1. 确认 `package.json` 与 `.claude-plugin/plugin.json` 版本一致
+2. 提交并推送主分支
+3. 创建 tag，例如：
+
+```bash
+git tag v0.1.2
+git push origin v0.1.2
+```
+
+4. 等待 GitHub Actions 自动发布到 npm
+
+如果你要补发旧版本，也可以在 Actions 里手动运行 `Publish to npm`，输入已有 tag，例如 `v0.1.1`
+
+---
+
 ## 当前边界
 
 `hello2cc` 能显著把第三方模型体验拉近 Claude Code 原生模型，但它不是字节级复刻。
