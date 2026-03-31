@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -32,6 +32,17 @@ function isolatedEnv(overrides = {}) {
     CLAUDE_PLUGIN_ROOT: resolve('.'),
     ...overrides,
   };
+}
+
+function writeTranscript(root, sessionId, payload) {
+  const transcriptPath = join(root, 'session.jsonl');
+  writeFileSync(transcriptPath, `${JSON.stringify({
+    type: 'system',
+    subtype: 'init',
+    session_id: sessionId,
+    ...payload,
+  })}\n`, 'utf8');
+  return transcriptPath;
 }
 
 test('session-start stays native-first and skill-free', () => {
@@ -221,6 +232,26 @@ test('pre-agent-model mirrors the current session model alias by default', () =>
 
   const output = run('pre-agent-model', {
     session_id: 'mirror-session',
+    tool_name: 'Agent',
+    tool_input: {
+      subagent_type: 'Plan',
+    },
+  }, env);
+
+  assert.equal(output.hookSpecificOutput.updatedInput.model, 'opus');
+});
+
+test('pre-agent-model can discover the current session model from transcript_path', () => {
+  const env = isolatedEnv();
+  const sessionId = 'transcript-model';
+  const transcriptPath = writeTranscript(env.HOME, sessionId, {
+    model: 'opus',
+    output_style: 'hello2cc Native',
+  });
+
+  const output = run('pre-agent-model', {
+    session_id: sessionId,
+    transcript_path: transcriptPath,
     tool_name: 'Agent',
     tool_input: {
       subagent_type: 'Plan',

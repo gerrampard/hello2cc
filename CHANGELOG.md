@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.7 - 2026-03-31
+
+- Added a default plugin `settings.json` that activates `hello2cc-native-main` as the main-thread agent, using `model: inherit` for a more silent and native-feeling baseline
+- Added `agents/hello2cc-native-main.md` so the main thread gets stronger native-first routing, ToolSearch-first posture, and table-friendly output guidance without relying solely on output styles
+- Added transcript-based session context discovery so native `Agent.model` injection can recover the active session model alias from real Claude Code transcripts when hook payloads do not expose it directly
+- Expanded regression coverage to validate transcript-driven model mirroring and to ensure the packaged plugin exports the new default main agent
+
 ## 0.0.6 - 2026-03-31
 
 - Added current-session model mirroring so missing native `Agent.model` values can inherit the active Claude Code model alias (for example `opus`) instead of relying on hard-coded defaults

@@ -94,6 +94,21 @@ function assertPluginCacheShape(pluginPath, name) {
   if (existsSync(join(pluginPath, 'skills'))) {
     fail(`real-session case "${name}" cached plugin still ships a skills directory`);
   }
+
+  const settingsPath = join(pluginPath, 'settings.json');
+  if (!existsSync(settingsPath)) {
+    fail(`real-session case "${name}" missing plugin settings.json`);
+  }
+
+  const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
+  if (settings.agent !== 'hello2cc-native-main') {
+    fail(`real-session case "${name}" plugin settings did not activate hello2cc-native-main`);
+  }
+
+  const agentPath = join(pluginPath, 'agents', 'hello2cc-native-main.md');
+  if (!existsSync(agentPath)) {
+    fail(`real-session case "${name}" missing hello2cc native main agent`);
+  }
 }
 
 function runCase(name, prompt, sessionExpectations) {

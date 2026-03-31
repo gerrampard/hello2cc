@@ -28,6 +28,7 @@ function validateJsonFiles() {
     '.claude-plugin/plugin.json',
     '.claude-plugin/marketplace.json',
     'hooks/hooks.json',
+    'settings.json',
   ];
 
   for (const relativePath of files) {
@@ -133,11 +134,22 @@ function validateHooks() {
   }
 }
 
-function validateNoLegacyAgents() {
+function validateAgents() {
   const agentsPath = join(root, 'agents');
-  if (existsSync(agentsPath)) {
-    fail('top-level agents directory should not exist; hello2cc uses native Agent and TeamCreate instead');
-    return;
+  if (!existsSync(agentsPath)) {
+    fail('agents directory should exist to provide the default main-thread agent');
+  } else {
+    const mainAgentPath = join(agentsPath, 'hello2cc-native-main.md');
+    if (!existsSync(mainAgentPath)) {
+      fail('missing agents/hello2cc-native-main.md');
+    } else {
+      const text = readFileSync(mainAgentPath, 'utf8');
+      if (!/name:\s*hello2cc-native-main/m.test(text) || !/model:\s*inherit/m.test(text)) {
+        fail('hello2cc native main agent should declare name and model: inherit');
+      } else {
+        ok('native main agent');
+      }
+    }
   }
 
   const legacyAgentsPath = join(root, 'legacy-agents');
@@ -146,7 +158,20 @@ function validateNoLegacyAgents() {
     return;
   }
 
-  ok('no legacy agent directories');
+  const settingsPath = join(root, 'settings.json');
+  if (!existsSync(settingsPath)) {
+    fail('settings.json should exist and activate the default hello2cc main agent');
+    return;
+  }
+
+  const settings = readJson(settingsPath);
+  if (!settings) return;
+
+  if (settings.agent !== 'hello2cc-native-main') {
+    fail('settings.json should activate agent hello2cc-native-main');
+  } else {
+    ok('plugin default agent setting');
+  }
 }
 
 function validateNoEmbeddedSkills() {
@@ -208,6 +233,7 @@ function validateLifecycleScripts() {
     join(root, 'scripts', 'lib', 'plugin-data.mjs'),
     join(root, 'scripts', 'lib', 'plugin-meta.mjs'),
     join(root, 'scripts', 'lib', 'session-state.mjs'),
+    join(root, 'scripts', 'lib', 'transcript-context.mjs'),
     join(root, 'scripts', 'lib', 'task-quality.mjs'),
     join(root, 'scripts', 'lib', 'subagent-quality.mjs'),
   ];
@@ -225,7 +251,7 @@ function validateLifecycleScripts() {
 validateJsonFiles();
 validatePluginManifest();
 validateHooks();
-validateNoLegacyAgents();
+validateAgents();
 validateNoEmbeddedSkills();
 validateOutputStyles();
 validateNativeFirstRouting();

@@ -1,8 +1,8 @@
 {
   "name": "hello2cc",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "type": "module",
-  "description": "Skill-free, native-first Claude Code plugin that mirrors the current model into native agents, nudges proactive tool and team use, and can silently bootstrap a persistent output style.",
+  "description": "Skill-free, native-first Claude Code plugin that now ships a default inherit-model main agent, mirrors active session models into native agents, and silently bootstraps native-first behavior for third-party models.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -20,9 +20,11 @@
   },
   "files": [
     ".claude-plugin/",
+    "agents/",
     "hooks/",
     "scripts/",
-    "output-styles/"
+    "output-styles/",
+    "settings.json"
   ],
   "engines": {
     "node": ">=18"
