@@ -18,9 +18,22 @@ function normalizePath(path) {
   return String(path || '').trim();
 }
 
+function recordSessionId(record) {
+  return String(record?.session_id || record?.sessionId || '').trim();
+}
+
 function isSessionSystemRecord(record, sessionId) {
   if (!record || record.type !== 'system') return false;
-  if (sessionId && String(record.session_id || '').trim() && String(record.session_id || '').trim() !== sessionId) {
+  if (sessionId && recordSessionId(record) && recordSessionId(record) !== sessionId) {
+    return false;
+  }
+
+  return true;
+}
+
+function isSessionRecord(record, sessionId) {
+  if (!record || typeof record !== 'object') return false;
+  if (sessionId && recordSessionId(record) && recordSessionId(record) !== sessionId) {
     return false;
   }
 
@@ -45,6 +58,18 @@ function sessionSnapshotFromRecord(record) {
   };
 }
 
+function teamSnapshotFromRecord(record) {
+  if (!record || typeof record !== 'object') return {};
+
+  const teamName = String(record.teamName || record.team_name || '').trim();
+  const agentName = String(record.agentName || record.agent_name || '').trim();
+
+  return {
+    ...(teamName ? { teamName } : {}),
+    ...(agentName ? { agentName } : {}),
+  };
+}
+
 export function extractSessionContextFromTranscript(transcriptPath, sessionId = '') {
   const path = normalizePath(transcriptPath);
   if (!path || !existsSync(path)) return {};
@@ -60,6 +85,16 @@ export function extractSessionContextFromTranscript(transcriptPath, sessionId = 
 
     let best = {};
     for (const record of records) {
+      if (!isSessionRecord(record, String(sessionId || '').trim())) continue;
+
+      const teamSnapshot = teamSnapshotFromRecord(record);
+      if (Object.keys(teamSnapshot).length > 0) {
+        best = {
+          ...best,
+          ...teamSnapshot,
+        };
+      }
+
       if (!isSessionSystemRecord(record, String(sessionId || '').trim())) continue;
 
       const snapshot = sessionSnapshotFromRecord(record);

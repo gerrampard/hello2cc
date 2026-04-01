@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { normalizeAgentTeamSemantics } from './lib/agent-input.mjs';
 import { configuredModels } from './lib/config.mjs';
 import { resolvedAgentModelOverride } from './lib/agent-models.mjs';
 import {
@@ -13,9 +14,10 @@ import {
   clearAllSessionContexts,
   clearSessionContext,
   rememberSessionContext,
+  rememberPromptSignals,
   readSessionContext,
 } from './lib/session-state.mjs';
-import { isSubagentPrompt, startsWithExplicitCommand } from './lib/prompt-signals.mjs';
+import { classifyPrompt, isSubagentPrompt, startsWithExplicitCommand } from './lib/prompt-signals.mjs';
 
 const cmd = process.argv[2] || '';
 
@@ -44,6 +46,9 @@ async function cmdRoute() {
     return;
   }
 
+  const signals = classifyPrompt(prompt);
+  rememberPromptSignals(payload?.session_id, signals);
+
   const additionalContext = buildRouteSteps(prompt, sessionContext);
   if (!additionalContext) {
     emptySuppress();
@@ -56,24 +61,32 @@ async function cmdRoute() {
 async function cmdPreAgentModel() {
   const payload = readStdinJson('orchestrator.mjs');
   const input = payload.tool_input || {};
+  const sessionContext = currentSessionContext(payload);
 
   if (payload.tool_name && payload.tool_name !== 'Agent') {
     emptySuppress();
     return;
   }
 
-  const override = resolvedAgentModelOverride(input, configuredModels(currentSessionContext(payload)));
-  if (!override.model) {
+  const teamNormalization = normalizeAgentTeamSemantics(input, sessionContext);
+  const override = resolvedAgentModelOverride(teamNormalization.input, configuredModels(sessionContext));
+  if (!override.model && !teamNormalization.changed) {
     emptySuppress();
     return;
   }
 
-  allowWithUpdatedInput(
-    {
-      ...input,
-      model: override.model,
-    },
+  const updatedInput = {
+    ...teamNormalization.input,
+    ...(override.model ? { model: override.model } : {}),
+  };
+  const reasons = [
+    teamNormalization.reason,
     override.reason,
+  ].filter(Boolean);
+
+  allowWithUpdatedInput(
+    updatedInput,
+    reasons.join('; '),
   );
 }
 

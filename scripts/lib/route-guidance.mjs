@@ -24,6 +24,7 @@ function buildSwarmStep(signals) {
   if (signals.teamWorkflow) {
     return [
       `用户显式要求团队编排：用 \`TeamCreate\` 建立持久团队来推进 ${trackList}。`,
+      '等 `TeamCreate` 产出真实团队后，后续 `Agent` 调用再显式传入 `name` + `team_name`；不要依赖 `main` / `default` 这类隐式 team 上下文。',
       '团队成员已启动后，补充指令、修正范围或续派时用 `SendMessage`。',
       '团队完成后用 `TeamDelete` 清理。',
     ].join(' ');
@@ -31,6 +32,7 @@ function buildSwarmStep(signals) {
 
   return [
     `这是多线任务：优先在同一条回复里并行发起多个原生 \`Agent\` worker，分别覆盖 ${trackList}。`,
+    '普通并行 worker 走 plain subagent 路径：不要给普通 worker 传 `name` 或 `team_name`，避免被宿主误判为 teammate。',
     '启动后简短告诉用户已启动哪些 worker，然后等待完成通知 / 回传消息，不要立刻轮询普通 agent 结果。',
     '需要补充指令或续派时用 `SendMessage`；如果某个 worker 明显走错方向，再用 `TaskStop`。',
     '不要把 `TaskOutput` 当成普通 worker 的默认结果获取方式；它更适合明确的后台任务日志读取。',
@@ -56,6 +58,8 @@ function buildResearchStep(signals) {
 export function buildRouteStepsFromSignals(signals, sessionContext = {}) {
   const config = configuredModels(sessionContext);
   const steps = [];
+
+  steps.push('可见文本默认跟随用户当前语言；不要输出“我打算 / 我应该 / let’s”这类内部思考式元叙述。');
 
   if (signals.toolSearchFirst) {
     steps.push('先 `ToolSearch` 确认可用工具、原生 agent 类型、MCP 能力、权限与边界，不要凭记忆猜。');

@@ -21,12 +21,16 @@ model: inherit
 - 简单、低风险修改直接做；改之前先读相关文件，优先改已有文件。
 - 有专用读写/搜索工具时先用专用工具，再考虑 shell。
 - 多个独立操作可以并行时就并行。
+- 可见文本默认跟随用户当前语言；除非用户明确要求，否则不要无故切换成另一种语言。
+- 不要把内部思考过程直接说出来；工具调用前说明保持一句简短行动描述，避免“我打算 / 我应该 / let’s”式元叙述。
 - 不确定工具、权限、MCP、插件能力或 agent 类型时，优先 `ToolSearch`。
 - 非 trivial 任务优先 `EnterPlanMode()`；只有明确需要任务盘时再用 `TaskCreate` / `TaskList` / `TaskUpdate`。
 - 代码库探索优先 `Explore` 或 `Plan`。
 - 边界清晰的实现、修复、验证切片优先 `General-Purpose`。
 - 多线并行任务默认优先并行启动多个原生 `Agent`；启动后等待完成通知回传，续派时优先 `SendMessage`，走错方向时再 `TaskStop`。
+- 普通 `Agent` worker 默认不要传 `name` / `team_name`；避免 Claude Code 宿主把普通 subagent 误判成 teammate。
 - 只有用户明确要求团队编排或确实需要持久团队身份时，才使用 `TeamCreate`；完成后及时 `TeamDelete`。
+- 真正需要 agent team 时，先 `TeamCreate` 拿到真实团队，再给 `Agent` 显式传入 `name` + `team_name`；不要依赖 `main` / `default` 这类隐式 team 上下文。
 - 不要把 `TaskOutput` 当成普通 worker 的默认结果获取方式；除非用户明确要读取后台任务日志。
 - Claude Code、hooks、MCP、Agent SDK、settings、权限类问题优先 `Claude Code Guide`。
 - MCP / connected tools 优先 `ListMcpResources` / `ReadMcpResource` 再决定后续动作。

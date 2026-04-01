@@ -74,8 +74,10 @@ export function rememberSessionContext(payload) {
   const outputStyle = String(context.outputStyle || '').trim();
   const toolNames = Array.isArray(context.toolNames) ? context.toolNames : [];
   const agentTypes = Array.isArray(context.agentTypes) ? context.agentTypes : [];
+  const teamName = String(context.teamName || '').trim();
+  const agentName = String(context.agentName || '').trim();
 
-  if (!key || (!mainModel && !outputStyle && toolNames.length === 0 && agentTypes.length === 0)) {
+  if (!key || (!mainModel && !outputStyle && toolNames.length === 0 && agentTypes.length === 0 && !teamName && !agentName)) {
     return {};
   }
 
@@ -94,6 +96,29 @@ export function rememberSessionContext(payload) {
         agentTypes,
         ...deriveAgentCapabilities(agentTypes),
       } : {}),
+      ...(teamName ? { teamName } : {}),
+      ...(agentName ? { agentName } : {}),
+      updatedAt: new Date().toISOString(),
+    },
+  });
+
+  writePluginDataJson(SESSION_STATE_PATH, nextState);
+  return nextState[key] || {};
+}
+
+export function rememberPromptSignals(sessionId, signals = {}) {
+  const key = normalizeSessionId(sessionId);
+  if (!key) return {};
+
+  const sessions = readPluginDataJson(SESSION_STATE_PATH, {});
+  const nextState = compactEntries({
+    ...sessions,
+    [key]: {
+      ...sessions[key],
+      lastPromptSignals: {
+        teamWorkflow: Boolean(signals?.teamWorkflow),
+        swarm: Boolean(signals?.swarm),
+      },
       updatedAt: new Date().toISOString(),
     },
   });

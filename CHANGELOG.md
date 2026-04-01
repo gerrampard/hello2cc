@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.6 - 2026-04-01
+
+- Fixed the ordinary-dialogue agent path so hello2cc now strips implicit teammate fields outside real team workflows, preventing third-party models from accidentally turning plain subagent work into `team=main` / `team=default` teammate spawns
+- Blocked assistant-mode placeholder team names such as `main` and `default` from being treated as real reusable team identities until a real `TeamCreate` workflow has established an explicit team
+- Tightened the native guidance and output style so visible narration follows the user's current language more closely and avoids verbose meta self-talk, making third-party models feel more like Claude Code's native coordinator style in Chinese sessions
+- Added focused regression coverage for reserved assistant-team names, explicit-team gating, and the updated language/style guidance so the issue #6 family does not regress
+
 ## 0.2.5 - 2026-04-01
 
 - Fixed native `Agent.model` injection for Claude Code `2.1.76+` by constraining hello2cc to host-safe `opus / sonnet / haiku` agent slots instead of passing arbitrary third-party aliases that newer Claude Code versions reject with `Invalid tool parameters`
