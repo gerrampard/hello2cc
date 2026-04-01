@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { configuredModels } from './lib/config.mjs';
-import { preferredModelForAgent } from './lib/agent-models.mjs';
+import { resolvedAgentModelOverride } from './lib/agent-models.mjs';
 import {
   allowWithUpdatedInput,
   emptySuppress,
@@ -62,8 +62,8 @@ async function cmdPreAgentModel() {
     return;
   }
 
-  const preferredModel = preferredModelForAgent(input, configuredModels(currentSessionContext(payload)));
-  if (!preferredModel) {
+  const override = resolvedAgentModelOverride(input, configuredModels(currentSessionContext(payload)));
+  if (!override.model) {
     emptySuppress();
     return;
   }
@@ -71,9 +71,9 @@ async function cmdPreAgentModel() {
   allowWithUpdatedInput(
     {
       ...input,
-      model: preferredModel,
+      model: override.model,
     },
-    `hello2cc injected Agent.model=${preferredModel}`,
+    override.reason,
   );
 }
 

@@ -87,7 +87,16 @@ if (pluginCommand && second === '--help') {
 }
 
 if (pluginCommand && second === 'list') {
-  process.stdout.write(String(behavior.listOutput || ''));
+  const wantsJson = args.includes('--json');
+  process.stdout.write(String(wantsJson ? behavior.listJsonOutput || '[]' : behavior.listOutput || ''));
+  process.exit(0);
+}
+
+if (pluginCommand && second === 'marketplace' && args[2] === 'add') {
+  process.exit(0);
+}
+
+if (pluginCommand && second === 'install') {
   process.exit(0);
 }
 
@@ -126,6 +135,13 @@ function createFakeClaudeEnv(options = {}) {
   const behavior = {
     helpCommands: options.helpCommands || ['plugins'],
     listOutput: options.listOutput || `Installed plugins:\n\n  hello2cc@hello2cc-local\n    Scope: user\n    Status: ✔ enabled\n`,
+    listJsonOutput: options.listJsonOutput || JSON.stringify([
+      {
+        id: 'hello2cc@hello2cc-local',
+        enabled: true,
+        installPath: pluginPath,
+      },
+    ]),
     enableExitCode: options.enableExitCode,
     disableExitCode: options.disableExitCode,
     printStderr: options.printStderr,

@@ -4,7 +4,7 @@
 
 它不负责 provider、gateway、模型映射或账号权限；它负责的是：**当你已经把第三方模型接入 Claude Code 之后，让这些模型尽量像原生 Opus / Sonnet 一样使用 Claude Code。**
 
-当前版本：`0.2.4`
+当前版本：`0.2.5`
 
 ---
 
@@ -33,9 +33,9 @@
 
 ---
 
-## 0.2.4 的核心方向
+## 0.2.5 的核心方向
 
-`0.2.4` 延续 strict-native 路线，并重点补强真实会话回归链路的稳健性：
+`0.2.5` 延续 strict-native 路线，并重点补强 `Agent.model` 与自安装回归的宿主兼容性：
 
 - **能力感知优先**：先看当前会话真实暴露了哪些工具和 agent
 - **状态感知优先**：尽量依赖会话上下文、任务状态、团队状态，而不是靠大段关键词猜意图
@@ -47,7 +47,10 @@
 - **结果回传更原生**：普通 worker 默认等待完成通知回传，不把 `TaskOutput` 当成默认轮询方式
 - **strict-native 清理**：删除旧版通知 / hook 兼容桥，不再向模型注入兼容、降级、fallback 一类提示
 - **原生路径固定优先**：`ToolSearch`、`Claude Code Guide`、`EnterPlanMode()`、原生 worker / team / MCP 路径持续保持默认优先
+- **Agent 槽位更安全**：仅向 Claude Code 原生 `Agent` 工具写入宿主真正接受的 `opus / sonnet / haiku` 槽位，避免新版本 Claude Code 因非法 `model` 参数直接报错
+- **第三方映射边界更清楚**：第三方模型别名应放在 gateway / provider / ccswitch 映射层，hello2cc 只负责原生槽位与原生行为，不再鼓励把 `cc-gpt-*` 一类别名直接写进插件覆盖项
 - **真实回归更稳**：本地真实回归现在可自动识别 `plugin` / `plugins` CLI 形式，Windows 缺少 `claude.ps1` 时也能继续走 PATH 中的 `claude`
+- **自安装冒烟回归**：真实回归会额外验证“从 marketplace 安装 hello2cc → 激活 → 读取插件列表”这条链路，防止自仓库安装再次回退成 `load error`
 - **状态回滚更干净**：真实回归若临时启用了 `hello2cc`，结束后会恢复原启用状态，避免污染用户环境
 - **错误定位更清楚**：真实回归会优先保留原始 Claude CLI 失败原因，并在必要时附带 restore 失败信息
 
@@ -168,17 +171,27 @@
 - `guide_model` / `explore_model` 按需填写
 - 其他覆盖项留空
 
+注意：这些覆盖项现在都应该填写 **Claude Code 原生槽位**，也就是 `opus` / `sonnet` / `haiku`，而不是第三方模型别名。
+
 ### 场景 C：你要强制某些原生 agent 固定走某个模型
 
 例如：
 
-- `guide_model = cc-gpt-5.4`
-- `explore_model = cc-gpt-5.3-codex-medium`
+- `guide_model = opus`
+- `explore_model = sonnet`
 
 或：
 
 - `general_model = opus`
-- `team_model = opus`
+- `team_model = sonnet`
+
+如果你实际想让这些槽位背后跑的是第三方模型，请在 `ccswitch`、provider profile、gateway 或模型映射层把：
+
+- `opus`
+- `sonnet`
+- `haiku`
+
+分别映射到你自己的第三方模型；**不要**把 `cc-gpt-5.4`、`cc-gpt-5.3-codex-medium` 这类别名直接写进 hello2cc 的这些覆盖项。
 
 只有在你明确要覆盖宿主 inherit 时才建议这样做。
 
@@ -200,13 +213,15 @@ hello2cc 会在会话里持续优先引导第三方模型主动使用 `ToolSearc
 |---|---|---|
 | `routing_policy` | `native-inject` | `native-inject` 会在必要路径静默补 `Agent.model`；`prompt-only` 只做行为引导，不改工具输入 |
 | `mirror_session_model` | `true` | 优先镜像当前会话模型别名 |
-| `primary_model` | 空 | 高能力原生 agent 的显式模型；为空时优先跟随当前会话 |
-| `subagent_model` | 空 | 为未显式设模的原生 agent / teammate 指定统一模型；为空时尽量保留原生 inherit |
-| `guide_model` | 空 | `Claude Code Guide` 的显式模型 |
-| `explore_model` | 空 | `Explore` 的显式模型 |
-| `plan_model` | 空 | 仅当你想强制覆盖 `Plan` 时填写 |
-| `general_model` | 空 | 仅当你想强制覆盖 `General-Purpose` 时填写 |
-| `team_model` | 空 | 仅当你想强制覆盖带 `team_name` 的 teammate 时填写 |
+| `primary_model` | 空 | 高能力原生 agent 的显式槽位；仅建议填写 `opus / sonnet / haiku` |
+| `subagent_model` | 空 | 为未显式设模的原生 agent / teammate 指定统一槽位；仅建议填写 `opus / sonnet / haiku` |
+| `guide_model` | 空 | `Claude Code Guide` 的显式槽位；仅建议填写 `opus / sonnet / haiku` |
+| `explore_model` | 空 | `Explore` 的显式槽位；仅建议填写 `opus / sonnet / haiku` |
+| `plan_model` | 空 | 仅当你想强制覆盖 `Plan` 时填写；仅建议填写 `opus / sonnet / haiku` |
+| `general_model` | 空 | 仅当你想强制覆盖 `General-Purpose` 时填写；仅建议填写 `opus / sonnet / haiku` |
+| `team_model` | 空 | 仅当你想强制覆盖带 `team_name` 的 teammate 时填写；仅建议填写 `opus / sonnet / haiku` |
+
+> 说明：`hello2cc` 现在会把 `Agent.model` 严格收敛到 Claude Code 宿主真正接受的原生槽位，避免新版本 Claude Code 因非法参数直接报 `Invalid tool parameters`。
 
 ---
 
@@ -258,7 +273,7 @@ npm run test:real
 - `npm run validate`：校验 manifest、hooks、settings、output style 和脚本结构
 - `npm test`：运行单元测试
 - `npm run check`：组合执行 `validate + test`
-- `npm run test:real`：调用本机 Claude Code CLI 做真实会话回归
+- `npm run test:real`：调用本机 Claude Code CLI 做真实会话回归，并先跑一遍“自 marketplace 安装 hello2cc”的隔离冒烟验证
 - `npm run test:real` 在新版中会尽量保持你原来的插件启用状态，不会因为临时回归而把 `hello2cc` 长久切成另一个状态
 
 如果真实回归失败，请优先检查：

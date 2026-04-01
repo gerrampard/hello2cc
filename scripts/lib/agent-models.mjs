@@ -6,6 +6,8 @@ function normalizeSlug(value) {
     .replace(/^-+|-+$/g, '');
 }
 
+const HOST_AGENT_MODEL_SLOTS = ['opus', 'sonnet', 'haiku'];
+
 export function canonicalAgentType(input) {
   const raw = String(input?.subagent_type || input?.agent_type || input?.name || '').trim();
   if (!raw) return '';
@@ -33,6 +35,24 @@ export function canonicalAgentType(input) {
   }
 
   return raw;
+}
+
+export function hostAgentModelSlot(value) {
+  const slug = normalizeSlug(value);
+  if (!slug) return '';
+
+  for (const slot of HOST_AGENT_MODEL_SLOTS) {
+    if (
+      slug === slot ||
+      slug.startsWith(`${slot}-`) ||
+      slug.endsWith(`-${slot}`) ||
+      slug.includes(`-${slot}-`)
+    ) {
+      return slot;
+    }
+  }
+
+  return '';
 }
 
 export function preferredModelForAgent(input, config) {
@@ -89,4 +109,35 @@ export function preferredModelForAgent(input, config) {
   }
 
   return '';
+}
+
+export function resolvedAgentModelOverride(input, config) {
+  const preferredModel = preferredModelForAgent(input, config);
+  if (!preferredModel) {
+    return { model: '', reason: '' };
+  }
+
+  const directSlot = hostAgentModelSlot(preferredModel);
+  if (directSlot) {
+    return {
+      model: directSlot,
+      reason: `hello2cc injected Agent.model=${directSlot}`,
+    };
+  }
+
+  const fallbackSlot = [
+    config?.sessionModel,
+    config?.primaryModel,
+  ]
+    .map(hostAgentModelSlot)
+    .find(Boolean) || '';
+
+  if (!fallbackSlot) {
+    return { model: '', reason: '' };
+  }
+
+  return {
+    model: fallbackSlot,
+    reason: `hello2cc normalized unsupported Agent.model=${preferredModel} to host-safe slot=${fallbackSlot}`,
+  };
 }

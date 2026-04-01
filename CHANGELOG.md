@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.5 - 2026-04-01
+
+- Fixed native `Agent.model` injection for Claude Code `2.1.76+` by constraining hello2cc to host-safe `opus / sonnet / haiku` agent slots instead of passing arbitrary third-party aliases that newer Claude Code versions reject with `Invalid tool parameters`
+- Added slot normalization and fallback logic so full Claude model IDs such as `claude-opus-*` / `claude-sonnet-*` still collapse back to the correct native agent slot when hello2cc needs to inject a built-in agent override
+- Updated plugin option copy and README guidance to make the boundary explicit: third-party aliases belong in provider / gateway / ccswitch mapping, while hello2cc model override fields should stay on native Claude slots
+- Added focused regression coverage for unsupported agent override aliases, slot fallback behavior, and supported-slot coercion so issue #4 does not regress
+- Added real Claude CLI install smoke coverage for the self-marketplace install path (`marketplace add` → `plugin install` → `plugin list`) to continuously guard the supported `2.1.76+` range against self-install / reload regressions reported in issue #3
+
 ## 0.2.4 - 2026-04-01
 
 - Hardened `scripts/claude-real-regression.mjs` so real-session checks now auto-detect both `plugin` and `plugins` Claude Code CLI forms instead of assuming only one command spelling

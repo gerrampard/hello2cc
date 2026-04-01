@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 function fail(message) {
@@ -16,24 +16,32 @@ function quoteForPowerShell(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
-function spawnClaudeFromPath(args) {
+function spawnClaudeFromPath(args, extraEnv = {}) {
   if (process.platform === 'win32') {
     const command = `claude ${args.map(quoteForPowerShell).join(' ')}`;
     return spawnSync('pwsh.exe', ['-NoLogo', '-NoProfile', '-Command', command], {
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024,
+      env: {
+        ...process.env,
+        ...extraEnv,
+      },
       shell: false,
     });
   }
 
   return spawnSync('claude', args, {
     encoding: 'utf8',
+    env: {
+      ...process.env,
+      ...extraEnv,
+    },
     maxBuffer: 10 * 1024 * 1024,
     shell: false,
   });
 }
 
-function spawnClaude(args) {
+function spawnClaude(args, extraEnv = {}) {
   if (process.platform === 'win32') {
     const appData = process.env.APPDATA || '';
     const claudePs1 = appData ? join(appData, 'npm', 'claude.ps1') : '';
@@ -41,13 +49,17 @@ function spawnClaude(args) {
       const command = `& ${quoteForPowerShell(claudePs1)} ${args.map(quoteForPowerShell).join(' ')}`;
       return spawnSync('pwsh.exe', ['-NoLogo', '-NoProfile', '-Command', command], {
         encoding: 'utf8',
+        env: {
+          ...process.env,
+          ...extraEnv,
+        },
         maxBuffer: 10 * 1024 * 1024,
         shell: false,
       });
     }
   }
 
-  return spawnClaudeFromPath(args);
+  return spawnClaudeFromPath(args, extraEnv);
 }
 
 function pluginCommand() {
@@ -215,6 +227,51 @@ function assertPluginCacheShape(pluginPath, name) {
   }
 }
 
+function isolatedClaudeEnv() {
+  const root = mkdtempSync(join(tmpdir(), 'hello2cc-real-install-'));
+
+  return {
+    HOME: root,
+    USERPROFILE: root,
+    APPDATA: join(root, 'AppData', 'Roaming'),
+    LOCALAPPDATA: join(root, 'AppData', 'Local'),
+  };
+}
+
+function runIsolatedInstallSmoke() {
+  const cliPluginCommand = ensureClaudeCli();
+  const env = isolatedClaudeEnv();
+  const pluginId = 'hello2cc@hello2cc-local';
+
+  const addResult = spawnClaude([cliPluginCommand, 'marketplace', 'add', process.cwd()], env);
+  if (addResult.error || addResult.status !== 0) {
+    fail(`isolated install smoke failed during marketplace add: ${addResult.stderr || addResult.error?.message || 'unknown error'}`);
+  }
+
+  const installResult = spawnClaude([cliPluginCommand, 'install', pluginId], env);
+  if (installResult.error || installResult.status !== 0) {
+    fail(`isolated install smoke failed during plugin install: ${installResult.stderr || installResult.error?.message || 'unknown error'}`);
+  }
+
+  const listResult = spawnClaude([cliPluginCommand, 'list', '--json'], env);
+  if (listResult.error || listResult.status !== 0) {
+    fail(`isolated install smoke failed during plugin list: ${listResult.stderr || listResult.error?.message || 'unknown error'}`);
+  }
+
+  const plugins = JSON.parse(listResult.stdout || '[]');
+  const plugin = Array.isArray(plugins) ? plugins.find((entry) => entry.id === pluginId) : null;
+  if (!plugin) {
+    fail('isolated install smoke did not surface hello2cc in plugin list output');
+  }
+
+  if (Array.isArray(plugin.errors) && plugin.errors.length > 0) {
+    fail(`isolated install smoke reported plugin load errors: ${plugin.errors.join('; ')}`);
+  }
+
+  assertPluginCacheShape(plugin.installPath, 'isolated-install');
+  ok('isolated-install');
+}
+
 function runCase(name, prompt, sessionExpectations) {
   const debugDir = join(homedir(), '.claude', 'debug');
   mkdirSync(debugDir, { recursive: true });
@@ -305,6 +362,7 @@ function runCase(name, prompt, sessionExpectations) {
 
 function main() {
   ensureClaudeCli();
+  runIsolatedInstallSmoke();
   const pluginState = ensureHello2ccEnabled();
   let primaryError = null;
 
