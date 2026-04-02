@@ -1,4 +1,5 @@
 import { FORCED_OUTPUT_STYLE_NAME, configuredModels } from './config.mjs';
+import { resolveWebSearchGuidanceMode } from './api-topology.mjs';
 
 function formatNames(values) {
   return values.map((value) => `\`${value}\``).join(', ');
@@ -86,6 +87,52 @@ function buildToolSearchLines() {
   ];
 }
 
+function buildWebSearchLines(sessionContext = {}) {
+  const mode = resolveWebSearchGuidanceMode(sessionContext);
+
+  if (mode === 'available') {
+    return [
+      '## 实时信息与 WebSearch',
+      '- 当前会话已暴露原生 `WebSearch`；遇到最新/今天/新闻/价格/天气/发布动态等问题时，优先先拿到实时来源，再组织回答。',
+      '- 如果 `WebSearch` 没有给出真实来源或搜索条目，就不要把记忆包装成联网结果。',
+      '- `WebSearch` 只负责实时来源；代码执行、文件读写、MCP 与 agent 协作仍优先走各自原生工具。',
+    ];
+  }
+
+  if (mode === 'proxy-conditional') {
+    return [
+      '## 实时信息与 WebSearch',
+      '- 当前会话已暴露原生 `WebSearch`，但链路看起来是自定义 `ANTHROPIC_BASE_URL` 代理；有些代理会转发真实搜索，有些不会。',
+      '- 仍然优先尝试原生 `WebSearch`；hello2cc 不会因为使用自定义代理就直接阻断这条路径。',
+      '- 只有当 `WebSearch` 真正返回搜索条目或来源链接时，才把它当成联网成功；如果界面出现 `Did 0 searches`、无来源或无搜索结果，必须明确说明未完成真实搜索。',
+      '- `WebSearch` 只负责实时来源；代码执行、文件读写、MCP 与 agent 协作仍优先走各自原生工具。',
+    ];
+  }
+
+  if (mode === 'not-exposed') {
+    return [
+      '## 实时信息与 WebSearch',
+      '- 当前会话未显式暴露原生 `WebSearch`；不要声称自己已经联网搜索了最新信息。',
+      '- 如果用户要求最新/实时信息，优先查找宿主真实暴露的联网工具；没有就明确说明边界。',
+    ];
+  }
+
+  if (mode === 'proxy-unknown') {
+    return [
+      '## 实时信息与 WebSearch',
+      '- 当前链路看起来是自定义 `ANTHROPIC_BASE_URL` 代理；若宿主暴露原生 `WebSearch`，优先用它获取实时来源。',
+      '- hello2cc 不会因为你使用代理就自动禁用 `WebSearch`；它只要求在没有真实搜索结果时诚实表达边界。',
+      '- 只有拿到真实搜索条目或来源链接时，才按联网结果回答；否则必须明确说明边界，不要把记忆当成实时搜索。',
+    ];
+  }
+
+  return [
+    '## 实时信息与 WebSearch',
+    '- 遇到最新/实时信息任务时，若宿主暴露原生 `WebSearch`，优先用它获取来源；不要只凭记忆回答这类问题。',
+    '- 如果没有真实搜索条目或来源，就明确说明当前边界，不要假装已经联网。',
+  ];
+}
+
 export function buildSessionStartContext(sessionContext = {}) {
   return [
     '# hello2cc',
@@ -103,6 +150,8 @@ export function buildSessionStartContext(sessionContext = {}) {
     ...buildObservedSurfaceLines(sessionContext),
     '',
     ...buildToolSearchLines(),
+    '',
+    ...buildWebSearchLines(sessionContext),
     '',
     '## 输出风格',
     `- 当前插件输出风格：\`${FORCED_OUTPUT_STYLE_NAME}\`。`,

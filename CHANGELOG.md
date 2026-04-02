@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.8 - 2026-04-02
+
+- Added softer native `WebSearch` guidance for real-time / latest-information questions so hello2cc encourages the host's built-in search path without pretending the plugin itself can create missing network capability
+- Added authenticity-focused proxy guidance: custom `ANTHROPIC_BASE_URL` sessions are still encouraged to try native `WebSearch`, but the model is reminded to treat `Did 0 searches`, missing links, or missing search hits as “not actually searched” instead of presenting memory as a real web result
+- Added regression coverage to keep this boundary stable: hello2cc should not hard-disable `WebSearch` just because a custom proxy is present, but it should keep result-truthfulness guidance intact
+
 ## 0.2.7 - 2026-04-02
 
 - Added a true `default_agent_model` option so users can define one native-safe default agent model preference without having to overuse per-agent overrides

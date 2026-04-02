@@ -1,4 +1,5 @@
 import { configuredModels } from './config.mjs';
+import { resolveWebSearchGuidanceMode } from './api-topology.mjs';
 
 function buildTaskPlanningStep() {
   return '这是非 trivial 实现：先 `EnterPlanMode()`；只有真的需要任务盘时再用 `TaskCreate` / `TaskList` / `TaskUpdate`。';
@@ -55,6 +56,28 @@ function buildResearchStep(signals) {
   return '这是研究 / 对比 / 文档任务：先做定向搜索与证据收集，再在需要扩大搜索面时转原生 `Explore` 或 `Plan`。';
 }
 
+function buildCurrentInfoStep(signals, sessionContext = {}) {
+  if (!signals.currentInfo) {
+    return '';
+  }
+
+  const mode = resolveWebSearchGuidanceMode(sessionContext);
+
+  if (mode === 'available') {
+    return '这是最新/实时信息任务：优先原生 `WebSearch` 获取当下来源，再组织答案；不要只凭记忆回答这类问题。';
+  }
+
+  if (mode === 'proxy-conditional') {
+    return '这是最新/实时信息任务：优先尝试原生 `WebSearch`；只有当它真实返回搜索条目或来源链接时，才按联网结果回答。若界面出现 `Did 0 searches`、无来源或无搜索结果，必须明确说明未完成真实搜索。';
+  }
+
+  if (mode === 'not-exposed') {
+    return '这是最新/实时信息任务：当前未显式看到原生 `WebSearch`；不要把记忆包装成最新联网信息，必要时先说明当前边界。';
+  }
+
+  return '这是最新/实时信息任务：若宿主暴露原生 `WebSearch`，优先用它获取实时来源；如果没有真实搜索结果或来源，就明确说明边界，不要假装已经联网。';
+}
+
 export function buildRouteStepsFromSignals(signals, sessionContext = {}) {
   const config = configuredModels(sessionContext);
   const steps = [];
@@ -72,6 +95,11 @@ export function buildRouteStepsFromSignals(signals, sessionContext = {}) {
   const researchStep = buildResearchStep(signals);
   if (researchStep) {
     steps.push(researchStep);
+  }
+
+  const currentInfoStep = buildCurrentInfoStep(signals, sessionContext);
+  if (currentInfoStep) {
+    steps.push(currentInfoStep);
   }
 
   if (signals.boundedImplementation) {

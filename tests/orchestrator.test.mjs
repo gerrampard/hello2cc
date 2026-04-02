@@ -152,6 +152,37 @@ test('session-start surfaces advanced native capabilities when the host exposes 
   assert.match(context, /PowerShell/);
 });
 
+test('session-start explains how to use native WebSearch for real-time questions', () => {
+  const env = isolatedEnv();
+  const output = run('session-start', {
+    session_id: 'session-websearch',
+    model: 'opus',
+    tools: ['WebSearch'],
+  }, env);
+  const context = output.hookSpecificOutput.additionalContext;
+
+  assert.match(context, /实时信息与 WebSearch/);
+  assert.match(context, /已暴露原生 `WebSearch`/);
+  assert.match(context, /不要把记忆包装成联网结果/);
+});
+
+test('session-start keeps WebSearch guidance honest on proxy-like sessions', () => {
+  const env = isolatedEnv({
+    ANTHROPIC_BASE_URL: 'https://proxy.example.com/v1',
+  });
+  const output = run('session-start', {
+    session_id: 'session-websearch-proxy',
+    model: 'opus',
+    tools: ['WebSearch'],
+  }, env);
+  const context = output.hookSpecificOutput.additionalContext;
+
+  assert.match(context, /自定义 `ANTHROPIC_BASE_URL` 代理/);
+  assert.match(context, /不会因为使用自定义代理就直接阻断这条路径/);
+  assert.match(context, /Did 0 searches/);
+  assert.match(context, /未完成真实搜索/);
+});
+
 test('route promotes native guide flow without skill references', () => {
   const env = isolatedEnv();
   run('session-start', {
@@ -255,6 +286,35 @@ test('route prefers MCP resource tools', () => {
   assert.match(context, /ToolSearch/);
   assert.match(context, /ListMcpResources/);
   assert.match(context, /ReadMcpResource/);
+});
+
+test('route prefers native WebSearch for real-time questions when the host exposes it', () => {
+  const env = isolatedEnv();
+  const output = run('route', {
+    session_id: 'route-websearch',
+    tools: ['WebSearch'],
+    prompt: '帮我查一下 OpenAI Codex 最近的新闻',
+  }, env);
+  const context = output.hookSpecificOutput.additionalContext;
+
+  assert.match(context, /最新\/实时信息任务/);
+  assert.match(context, /优先原生 `WebSearch`/);
+});
+
+test('route keeps proxy WebSearch guidance focused on authenticity rather than blocking', () => {
+  const env = isolatedEnv({
+    ANTHROPIC_BASE_URL: 'https://proxy.example.com/v1',
+  });
+  const output = run('route', {
+    session_id: 'route-websearch-proxy',
+    tools: ['WebSearch'],
+    prompt: '帮我查下今天 AI 新闻',
+  }, env);
+  const context = output.hookSpecificOutput.additionalContext;
+
+  assert.match(context, /优先尝试原生 `WebSearch`/);
+  assert.match(context, /Did 0 searches/);
+  assert.match(context, /未完成真实搜索/);
 });
 
 test('route keeps ToolSearch-first intent optimistic on proxy sessions without host proof either way', () => {

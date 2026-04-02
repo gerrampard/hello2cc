@@ -72,6 +72,29 @@ const RESEARCH_PATTERNS = [
   /支持/,
 ];
 
+const CURRENT_INFO_PATTERNS = [
+  /\b(latest|recent|recently|current|today|tonight|this week|this month|breaking)\b/,
+  /\b(news|headline|headlines|weather|forecast|price|pricing|stock|stocks|score|scores|release notes|changelog)\b/,
+  /最新/,
+  /最近/,
+  /近期/,
+  /当前/,
+  /今天/,
+  /今晚/,
+  /本周/,
+  /本月/,
+  /实时/,
+  /新闻/,
+  /头条/,
+  /天气/,
+  /价格/,
+  /股价/,
+  /比分/,
+  /汇率/,
+  /更新日志/,
+  /发布动态/,
+];
+
 const SWARM_PATTERNS = [
   /parallel/,
   /in parallel/,
@@ -352,6 +375,7 @@ export function isSubagentPrompt(prompt) {
 export function classifyPrompt(prompt) {
   const text = normalizePrompt(prompt);
   const research = hasAny(text, RESEARCH_PATTERNS);
+  const currentInfo = hasAny(text, CURRENT_INFO_PATTERNS);
   const explicitHostFeature = hasAny(text, HOST_FEATURE_PATTERNS);
   const claudeGuide = hasQuestionIntent(text) && hasAny(text, GUIDE_PATTERNS);
   const implement = hasAny(text, IMPLEMENT_PATTERNS);
@@ -394,6 +418,7 @@ export function classifyPrompt(prompt) {
   return {
     diagram: hasAny(text, DIAGRAM_PATTERNS),
     research,
+    currentInfo,
     swarm,
     teamWorkflow,
     verify,
