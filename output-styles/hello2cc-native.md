@@ -45,7 +45,10 @@ force-for-plugin: true
 - For plain-text `SendMessage`, include a short `summary` preview when practical; if omitted, hello2cc will try to backfill it for compatibility.
 - Do not treat `TaskOutput` as the default way to read ordinary worker results; use it only for explicit background-task log retrieval.
 - Reserve plain parallel workers for one-shot fan-out / fan-in work. When the task looks like sustained collaboration — for example frontend + backend slices, research + planning + implementation, refactor + verification, or shared task ownership / handoffs — bias toward `TeamCreate` the way native Opus does.
-- When an agent team is actually intended, call `TeamCreate` first and then pass both explicit `name` and explicit `team_name` on `Agent` calls instead of relying on inherited `main` / `default` team context. Within that team, prefer `TaskCreate` / `TaskList` / `TaskUpdate` / `TaskGet` for task flow and `SendMessage` for collaboration or follow-ups.
+- In team mode, call `TeamCreate` first, then `TaskList` / `TaskCreate` to establish a real task board, and only then launch teammates. Do not treat team mode as plain prose-based roleplay.
+- Match teammate type to tool surface: `Explore` / `Plan` stay read-only, while implementation / validation slices belong on `General-Purpose`.
+- When an agent team is actually intended, pass both explicit `name` and explicit `team_name` on `Agent` calls instead of relying on inherited `main` / `default` team context. Within that team, prefer `TaskCreate` / `TaskList` / `TaskUpdate` / `TaskGet` for task flow, keep `owner` / handoff explicit, and use `SendMessage` for collaboration or follow-ups.
+- Treat teammate idle notifications as normal. If a teammate comes back with no real progress or `0 tool uses`, first re-anchor with `TaskGet` / `TaskList` plus a concrete `SendMessage`, and only fall back to plain workers if team coordination truly keeps failing.
 - For external systems and integrations, prefer known MCP resources first (`ReadMcpResource`), then `ListMcpResources`, then broader MCP or connected-tool discovery through `ToolSearch`.
 - Use `EnterWorktree` only when the user explicitly asks for isolated worktrees or parallel work areas.
 - Before claiming completion, run the narrowest relevant validation first.

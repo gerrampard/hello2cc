@@ -135,7 +135,7 @@ function buildWorkingHabitLines() {
     '- 把宿主已暴露的 skills / workflows / plugin tools / MCP tools 视为一等能力；不要因为 hello2cc 存在就绕开它们。',
     '- 有专用读写 / 搜索工具时优先用专用工具，再考虑 shell。',
     '- 优先走最具体的能力表面：已加载的 workflow / slash command / skill 连续体 → 已 surfaced 的 skill → `DiscoverSkills` → 已知 MCP resource → 已加载 / 已 surfaced 的 deferred tool → `ToolSearch` → 更宽的 agent 路径。',
-    '- 非 trivial 任务优先 `EnterPlanMode()`；只有真的需要任务盘时再维护原生 `Task*`。',
+    '- 非 trivial 任务优先 `EnterPlanMode()`；如果后续是持续协作型 team 工作流，就把计划尽快落到原生 task board，而不是只停留在口头分工。',
     '- 不确定可用工具、agent、MCP、权限边界时，优先 `ToolSearch`。',
     '- Claude Code / hooks / MCP / settings / Agent SDK / Claude API 问题优先 `Claude Code Guide`（本地读搜 + `WebFetch` + `WebSearch`）。',
     '- 代码库研究与范围探索优先原生搜索，再按需要转 `Explore`（只读搜索）或 `Plan`（只读规划）。',
@@ -143,7 +143,10 @@ function buildWorkingHabitLines() {
     '- 多线任务默认优先并行多个原生 `Agent` worker；续派优先 `SendMessage`；跑偏时再 `TaskStop`。',
     '- 普通 `Agent` worker 默认不要传 `name` / `team_name`；避免宿主把普通 subagent 误路由成 teammate。',
     '- 持续协作型多 agent 任务（例如 frontend + backend、research + plan + implement、重构 + 验证、共享任务盘 / owner / handoff）要更像原生 Opus 一样主动偏向 `TeamCreate`，而不是只在用户显式说 team 时才进入团队模式。',
-    '- 真正需要 agent team 时，先 `TeamCreate` 拿到真实团队，再给 `Agent` 显式传入 `name` + `team_name`；团队内任务流转优先 `TaskCreate` / `TaskList` / `TaskUpdate` / `TaskGet`，补充协作或续派时再 `SendMessage`；完成后及时 `TeamDelete`。不要依赖 `main` / `default` 这类隐式 team 上下文。',
+    '- 进入 team 模式后，先 `TeamCreate`，然后 `TaskList` / `TaskCreate` 建立真实 task board，再启动实现 teammate；不要一建团队就只靠正文口头分工。',
+    '- 选择 teammate 时遵守原生 agent 工具面：`Explore` / `Plan` 只读，只做搜索或规划；需要改文件、联调、验证的切片交给 `General-Purpose`。',
+    '- 真正需要 agent team 时，后续 `Agent` 要显式传入 `name` + `team_name`；团队内任务流转优先 `TaskCreate` / `TaskList` / `TaskUpdate` / `TaskGet`，分派和接力时显式维护 `owner`，补充协作或续派时再 `SendMessage`；完成后及时 `TeamDelete`。不要依赖 `main` / `default` 这类隐式 team 上下文。',
+    '- teammate 每回合结束后变成 idle 是正常行为，不等于失败；如果某个 teammate 出现 `0 tool uses`、没有实质推进或 task 失配，优先用 `TaskGet` / `TaskList` + `SendMessage` 在团队内重对齐，而不是立刻判定 team 路径失效。',
     '- 普通 worker 的结果默认看完成通知 / 回传消息，不要把 `TaskOutput` 当成普通 worker 的默认结果获取方式。',
     '- 纯文本 `SendMessage` 最好带简短 `summary` 预览；如果忘了带，hello2cc 会尽量补齐兼容层，避免踩到宿主校验坑。',
     '- 外部系统与集成优先原生 MCP / connected tools，优先 `ListMcpResources` / `ReadMcpResource`。',
@@ -285,6 +288,17 @@ function buildAgentSurfaceLines(sessionContext = {}) {
   ];
 }
 
+function buildTeamCoordinationLines() {
+  return [
+    '## Team / task-board 协作',
+    '- 原生 team 顺序：`TeamCreate` → `TaskList` / `TaskCreate` → `Agent(name + team_name)` → `TaskUpdate` / `TaskGet` / `SendMessage` → `TeamDelete`。',
+    '- task board 要写成真实可执行项：subject 清晰、description 足够让 teammate 独立推进；需要依赖关系时明确 `blockedBy` / `owner`。',
+    '- teammate 开工前先看 `TaskList`，更新任务前先 `TaskGet`；开始做事时把任务推进到 `in_progress`，只有真正完成才标 `completed`。',
+    '- 做完一个 task 后先 `TaskList` 看下一个未阻塞任务；如果卡住，就保持任务未完成并通过 `SendMessage` 说明 blocker 或需要的 handoff。',
+    '- teammate 之间真正的沟通靠 `SendMessage`；写在普通正文里的话不是团队协作通道。',
+  ];
+}
+
 function buildToolSearchLines() {
   return [
     '## ToolSearch 状态',
@@ -360,6 +374,8 @@ export function buildSessionStartContext(sessionContext = {}) {
     ...buildObservedSurfaceLines(sessionContext),
     '',
     ...buildAgentSurfaceLines(sessionContext),
+    '',
+    ...buildTeamCoordinationLines(),
     '',
     ...buildToolSearchLines(),
     '',

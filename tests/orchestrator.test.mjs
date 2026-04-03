@@ -151,6 +151,23 @@ test('session-start surfaces advanced native capabilities when the host exposes 
   assert.match(context, /PowerShell/);
 });
 
+test('session-start explains native team and task-board coordination', () => {
+  const env = isolatedEnv();
+  const output = run('session-start', {
+    session_id: 'session-team-coordination',
+    model: 'opus',
+  }, env);
+  const context = output.hookSpecificOutput.additionalContext;
+
+  assert.match(context, /Team \/ task-board 协作/);
+  assert.match(context, /TeamCreate/);
+  assert.match(context, /TaskList/);
+  assert.match(context, /TaskCreate/);
+  assert.match(context, /TaskUpdate/);
+  assert.match(context, /SendMessage/);
+  assert.match(context, /普通正文里的话不是团队协作通道/);
+});
+
 test('session-start explains how to use native WebSearch for real-time questions', () => {
   const env = isolatedEnv();
   const output = run('session-start', {
@@ -573,6 +590,20 @@ test('route proactively promotes TeamCreate for sustained collaboration tasks', 
   assert.match(context, /TaskUpdate/);
   assert.match(context, /TaskGet/);
   assert.match(context, /SendMessage/);
+});
+
+test('route strengthens task-board bootstrap and recovery guidance for sustained team workflows', () => {
+  const env = isolatedEnv();
+  const output = run('route', {
+    session_id: 'route-team-recovery',
+    prompt: '请完成一个前后端联动的小功能：先调研、再拆任务、再实现、再验证，需要多个 agent 协作推进，并维护可交接的任务状态。',
+  }, env);
+  const context = output.hookSpecificOutput.additionalContext;
+
+  assert.match(context, /TaskList` \/ `TaskCreate` 把研究、实现、验证和 handoff 落成真实 task board/);
+  assert.match(context, /`Explore` \/ `Plan` 只读，`General-Purpose` 才承担实现或验证/);
+  assert.match(context, /0 tool uses/);
+  assert.match(context, /TaskGet` \/ `TaskList` \+ `SendMessage` 自修复/);
 });
 
 test('route promotes General-Purpose for bounded implementation slices', () => {

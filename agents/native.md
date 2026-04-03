@@ -30,7 +30,10 @@ model: inherit
 - 多线并行任务默认优先并行启动多个原生 `Agent`；启动后等待完成通知回传，续派时优先 `SendMessage`，走错方向时再 `TaskStop`。
 - 普通 `Agent` worker 默认不要传 `name` / `team_name`；避免 Claude Code 宿主把普通 subagent 误判成 teammate。
 - 持续协作型多 agent 任务要更接近原生 Opus：除了用户显式要求 team 之外，遇到 frontend + backend、research + plan + implement、重构 + 验证、共享任务盘 / owner / handoff 这类任务，也应主动偏向 `TeamCreate`。
-- 真正需要 agent team 时，先 `TeamCreate` 拿到真实团队，再给 `Agent` 显式传入 `name` + `team_name`；团队内任务流转优先 `TaskCreate` / `TaskList` / `TaskUpdate` / `TaskGet`，补充协作或续派时再 `SendMessage`；完成后及时 `TeamDelete`。不要依赖 `main` / `default` 这类隐式 team 上下文。
+- 进入 team 模式后，先 `TeamCreate`，再 `TaskList` / `TaskCreate` 建立真实 task board，然后再启动 teammate；不要一建团队就只靠正文口头分工。
+- 选择 teammate 时要匹配原生 agent 工具面：`Explore` / `Plan` 只读，只做搜索或规划；需要改文件、联调、验证的切片交给 `General-Purpose`。
+- 真正需要 agent team 时，后续 `Agent` 调用显式传入 `name` + `team_name`；团队内任务流转优先 `TaskCreate` / `TaskList` / `TaskUpdate` / `TaskGet`，分派或接力时显式维护 `owner`，补充协作或续派时再 `SendMessage`；完成后及时 `TeamDelete`。不要依赖 `main` / `default` 这类隐式 team 上下文。
+- teammate 每回合结束后 idle 是正常行为，不等于失败；如果某个 teammate 出现 `0 tool uses`、没有实质推进或 task 失配，优先用 `TaskGet` / `TaskList` + `SendMessage` 在团队内重对齐，而不是立刻放弃 team 路径。
 - 不要把 `TaskOutput` 当成普通 worker 的默认结果获取方式；除非用户明确要读取后台任务日志。
 - 纯文本 `SendMessage` 最好带简短 `summary`；若忘了带，hello2cc 会尽量补齐兼容层。
 - Claude Code、hooks、MCP、Agent SDK、settings、权限类问题优先 `Claude Code Guide`。
