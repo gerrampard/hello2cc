@@ -52,7 +52,7 @@
 |---|---|
 | 安装流程 | 3 步 |
 | 安装后额外入口命令 | 0 |
-| 常见配置方案 | 2 种 |
+| 常见配置方案 | 3 种 |
 | 核心目标 | 1 个 —— 让第三方模型更自然地使用 Claude Code |
 
 ---
@@ -187,7 +187,7 @@ flowchart LR
 
 ## 🛠️ 重装 / 升级
 
-如果你修改了本地仓库，或者想先清理旧缓存：
+如果你修改了本地仓库，或者想完整重装：
 
 ```bash
 claude plugin uninstall --scope user hello2cc@hello2cc-local

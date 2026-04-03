@@ -52,7 +52,7 @@ Its job is simpler:
 |---|---|
 | Install flow | 3 steps |
 | Extra command required after install | 0 |
-| Common config profiles | 2 |
+| Common config profiles | 3 |
 | Main goal | 1 — help third-party models use Claude Code more naturally |
 
 ---
@@ -187,7 +187,7 @@ flowchart LR
 
 ## 🛠️ Reinstall / upgrade
 
-If you changed the local repository or want to clean old cache first:
+If you changed the local repository or want a clean reinstall:
 
 ```bash
 claude plugin uninstall --scope user hello2cc@hello2cc-local
