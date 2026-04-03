@@ -1263,10 +1263,14 @@ test('pre-agent-model makes team_name explicit for explicit team workflows', () 
 
 test('post-tool-failure records non-git worktree failures and pre-agent-model fail-closes repeated worktree retries', () => {
   const env = isolatedEnv();
+  const failedCwd = join(env.HOME, 'non-git-worktree');
+  const differentCwd = join(env.HOME, 'other-non-git-worktree');
+  mkdirSync(failedCwd, { recursive: true });
+  mkdirSync(differentCwd, { recursive: true });
 
   const failure = run('post-tool-failure', {
     session_id: 'worktree-precondition',
-    cwd: 'C:\\Users\\hellowind\\Downloads',
+    cwd: failedCwd,
     tool_name: 'Agent',
     tool_input: {
       subagent_type: 'claude-code-guide',
@@ -1278,7 +1282,7 @@ test('post-tool-failure records non-git worktree failures and pre-agent-model fa
 
   const blocked = run('pre-agent-model', {
     session_id: 'worktree-precondition',
-    cwd: 'C:\\Users\\hellowind\\Downloads',
+    cwd: failedCwd,
     tool_name: 'Agent',
     tool_input: {
       subagent_type: 'claude-code-guide',
@@ -1289,9 +1293,9 @@ test('post-tool-failure records non-git worktree failures and pre-agent-model fa
   assert.equal(blocked.hookSpecificOutput.permissionDecision, 'deny');
   assert.match(blocked.hookSpecificOutput.permissionDecisionReason, /blocked repeated worktree isolation/i);
 
-  const differentCwd = run('pre-agent-model', {
+  const allowedDifferentCwd = run('pre-agent-model', {
     session_id: 'worktree-precondition',
-    cwd: 'D:\\GitHub\\dev\\hello2cc',
+    cwd: differentCwd,
     tool_name: 'Agent',
     tool_input: {
       subagent_type: 'claude-code-guide',
@@ -1299,9 +1303,9 @@ test('post-tool-failure records non-git worktree failures and pre-agent-model fa
     },
   }, env);
 
-  assert.equal(differentCwd.hookSpecificOutput.permissionDecision, 'allow');
-  assert.equal(differentCwd.hookSpecificOutput.updatedInput.isolation, undefined);
-  assert.match(differentCwd.hookSpecificOutput.permissionDecisionReason, /removed Agent\.isolation=worktree/);
+  assert.equal(allowedDifferentCwd.hookSpecificOutput.permissionDecision, 'allow');
+  assert.equal(allowedDifferentCwd.hookSpecificOutput.updatedInput.isolation, undefined);
+  assert.match(allowedDifferentCwd.hookSpecificOutput.permissionDecisionReason, /removed Agent\.isolation=worktree/);
 });
 
 test('pre-agent-model auto-unblocks stale worktree failures after the cwd becomes a git repo', () => {
@@ -1457,10 +1461,12 @@ test('post-tool-use records deleted teams as unavailable until recreated', () =>
 
 test('post-tool-failure records non-git EnterWorktree failures and pre-enter-worktree fail-closes repeated retries', () => {
   const env = isolatedEnv();
+  const failedCwd = join(env.HOME, 'non-git-enter-worktree');
+  mkdirSync(failedCwd, { recursive: true });
 
   run('post-tool-failure', {
     session_id: 'enter-worktree-precondition',
-    cwd: 'C:\\Users\\hellowind\\Downloads',
+    cwd: failedCwd,
     tool_name: 'EnterWorktree',
     tool_input: {
       name: 'sandbox',
@@ -1470,7 +1476,7 @@ test('post-tool-failure records non-git EnterWorktree failures and pre-enter-wor
 
   const blocked = run('pre-enter-worktree', {
     session_id: 'enter-worktree-precondition',
-    cwd: 'C:\\Users\\hellowind\\Downloads',
+    cwd: failedCwd,
     tool_name: 'EnterWorktree',
     tool_input: {
       name: 'sandbox',
