@@ -138,3 +138,34 @@ test('route skips explicit slash commands', () => {
 
   assert.deepEqual(output, { suppressOutput: true });
 });
+
+test('route adds native team guidance for explicit team workflow requests', () => {
+  const env = isolatedEnv();
+  const output = run('route', {
+    session_id: 'route-team-guidance',
+    prompt: 'Use TeamCreate and teammates with a shared task board to coordinate research and implementation.',
+  }, env);
+  const context = output.hookSpecificOutput.additionalContext;
+  const state = parseAdditionalContextJson(context);
+
+  assert.match(context, /TeamCreate/);
+  assert.match(context, /TaskList/);
+  assert.equal(state.intent.collaboration.team_workflow, true);
+  assert.equal(state.intent.collaboration.task_board, true);
+});
+
+test('route prefers markdown tables for comparison prompts', () => {
+  const env = isolatedEnv();
+  const output = run('route', {
+    session_id: 'route-compare-table',
+    prompt: 'Compare TeamCreate with plain Agent workers and present it as a table.',
+  }, env);
+  const context = output.hookSpecificOutput.additionalContext;
+  const state = parseAdditionalContextJson(context);
+
+  assert.match(context, /Markdown 表格|Markdown tables?/);
+  assert.match(context, /一句话判断/);
+  assert.equal(state.intent.routing.diagram, true);
+  assert.equal(state.intent.routing.compare, true);
+  assert.ok(!state.intent.actions || !state.intent.actions.includes('plan'));
+});

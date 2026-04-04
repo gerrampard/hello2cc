@@ -48,6 +48,6 @@ export function buildSessionStartContext(sessionContext = {}) {
   return buildSessionStartContextText(sessionContext);
 }
 
-export function buildRouteContext(sessionContext = {}) {
-  return buildRouteStateContext(sessionContext);
+export function buildRouteContext(prompt, sessionContext = {}) {
+  return buildRouteStateContext(prompt, sessionContext);
 }

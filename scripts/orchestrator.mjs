@@ -15,12 +15,14 @@ import { normalizeSendMessageInput } from './lib/send-message-input.mjs';
 import {
   clearAllSessionContexts,
   clearSessionContext,
+  rememberPromptSignals,
   rememberRouteStateSignature,
   rememberToolFailure,
   rememberToolSuccess,
   rememberSessionContext,
   readSessionContext,
 } from './lib/session-state.mjs';
+import { analyzeIntentProfile } from './lib/intent-profile.mjs';
 import { isSubagentPrompt, startsWithExplicitCommand } from './lib/prompt-signals.mjs';
 
 const cmd = process.argv[2] || '';
@@ -51,16 +53,20 @@ async function cmdRoute() {
 
   const prompt = extractPromptText(payload).trim();
   if (!prompt || startsWithExplicitCommand(prompt) || isSubagentPrompt(prompt)) {
+    rememberPromptSignals(payload?.session_id, {});
     emptySuppress();
     return;
   }
+
+  const signals = analyzeIntentProfile(prompt, sessionContext);
+  rememberPromptSignals(payload?.session_id, signals);
 
   if (!shouldEmitAdditionalContext()) {
     emptySuppress();
     return;
   }
 
-  const additionalContext = buildRouteContext(sessionContext);
+  const additionalContext = buildRouteContext(prompt, sessionContext);
   if (!additionalContext) {
     rememberRouteStateSignature(payload?.session_id, '');
     emptySuppress();

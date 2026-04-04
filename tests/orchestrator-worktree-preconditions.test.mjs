@@ -15,6 +15,11 @@ test('post-tool-failure records non-git worktree failures and pre-agent-model fa
   mkdirSync(failedCwd, { recursive: true });
   mkdirSync(differentCwd, { recursive: true });
 
+  run('route', {
+    session_id: 'worktree-precondition',
+    prompt: 'Use an isolated worktree for this delegated agent task.',
+  }, env);
+
   const failure = run('post-tool-failure', {
     session_id: 'worktree-precondition',
     cwd: failedCwd,
@@ -57,6 +62,11 @@ test('pre-agent-model auto-unblocks stale worktree failures after the cwd become
   const env = isolatedEnv();
   const repoDir = join(env.HOME, 'repo');
   mkdirSync(join(repoDir, '.git'), { recursive: true });
+
+  run('route', {
+    session_id: 'worktree-recovered-git',
+    prompt: 'Use an isolated worktree for this delegated implementation.',
+  }, env);
 
   run('post-tool-failure', {
     session_id: 'worktree-recovered-git',

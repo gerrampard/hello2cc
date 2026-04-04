@@ -40,6 +40,10 @@ function compact(value) {
   return value;
 }
 
+export function compactState(value) {
+  return compact(value);
+}
+
 function isImplicitAssistantTeamName(value) {
   return IMPLICIT_ASSISTANT_TEAM_NAMES.has(trimmed(value).toLowerCase());
 }
@@ -122,7 +126,7 @@ function protocolAdapters(sessionContext = {}) {
   const config = configuredModels(sessionContext);
 
   return compact({
-    semantic_routing: 'model_decides',
+    semantic_routing: 'host_guarded_model_decides',
     explicit_tool_input_wins: true,
     agent_model: config.routingPolicy === 'prompt-only'
       ? 'preserve_input'
@@ -163,7 +167,8 @@ function hostSnapshot(sessionContext = {}, options = {}) {
 
 export function buildSessionStartHostState(sessionContext = {}) {
   return compact({
-    hello2cc_role: ['host-state', 'protocol-adapter', 'failure-debounce'],
+    hello2cc_role: ['native-operator-shell', 'host-state', 'protocol-adapter', 'failure-debounce'],
+    operator_profile: 'opus-compatible-claude-code',
     precedence: [
       'user_message',
       'claude_code_host',
@@ -211,7 +216,7 @@ export function renderHostStateBlock(title, snapshot) {
   return [
     `# ${title}`,
     '',
-    'Treat this as host state only. Semantic routing, workflow choice, and tool choice remain model-decided.',
+    'Treat this as host state plus guard rails. hello2cc keeps the model on an Opus-compatible Claude Code path, while explicit tool inputs and higher-priority rules still win.',
     '',
     '```json',
     JSON.stringify(compacted, null, 2),

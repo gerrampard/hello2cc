@@ -1,4 +1,5 @@
 import {
+  rememberPromptSignals,
   rememberRouteStateSignature,
   rememberSessionContext,
   sessionContextFromPayload,
@@ -26,6 +27,7 @@ export function clearAllSessionContexts() {
 }
 
 export {
+  rememberPromptSignals,
   rememberRouteStateSignature,
   rememberSessionContext,
   rememberToolFailure,

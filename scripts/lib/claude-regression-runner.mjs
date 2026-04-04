@@ -136,13 +136,13 @@ export function runRealRegression() {
 
   try {
     runCase('baseline', 'Reply with exactly OK.', [
-      'hello2cc host_state',
-      '"semantic_routing": "model_decides"',
+      'opus-compatible-claude-code',
+      '"semantic_routing": "host_guarded_model_decides"',
       'ToolSearch',
     ]);
     runCase('repeat', 'Reply with exactly STILL_OK.', [
-      'hello2cc host_state',
-      '"semantic_routing": "model_decides"',
+      'opus-compatible-claude-code',
+      '"semantic_routing": "host_guarded_model_decides"',
       'ToolSearch',
     ]);
   } catch (error) {

@@ -18,13 +18,19 @@ test('pre-agent-model strips implicit teammate fields for plain workers', () => 
 
   assert.equal(output.hookSpecificOutput.updatedInput.name, undefined);
   assert.equal(output.hookSpecificOutput.updatedInput.team_name, undefined);
-  assert.match(output.hookSpecificOutput.permissionDecisionReason, /plain workers should omit name\/team_name/i);
+  assert.match(output.hookSpecificOutput.permissionDecisionReason, /plain subagent semantics outside explicit team-oriented workflows/i);
 });
 
 test('pre-agent-model preserves explicit real team_name and can inject team model', () => {
   const env = isolatedEnv({
     CLAUDE_PLUGIN_OPTION_TEAM_MODEL: 'sonnet',
   });
+
+  run('route', {
+    session_id: 'explicit-team',
+    prompt: 'Use TeamCreate with teammates and a shared task board for this work.',
+  }, env);
+
   const output = run('pre-agent-model', {
     session_id: 'explicit-team',
     tool_name: 'Agent',
@@ -42,6 +48,12 @@ test('pre-agent-model preserves explicit real team_name and can inject team mode
 
 test('pre-agent-model strips reserved assistant team placeholders', () => {
   const env = isolatedEnv();
+
+  run('route', {
+    session_id: 'reserved-team-name',
+    prompt: 'Coordinate teammates inside a real team workflow.',
+  }, env);
+
   const output = run('pre-agent-model', {
     session_id: 'reserved-team-name',
     tool_name: 'Agent',
@@ -54,5 +66,5 @@ test('pre-agent-model strips reserved assistant team placeholders', () => {
 
   assert.equal(output.hookSpecificOutput.updatedInput.name, undefined);
   assert.equal(output.hookSpecificOutput.updatedInput.team_name, undefined);
-  assert.match(output.hookSpecificOutput.permissionDecisionReason, /reserved assistant team placeholders/i);
+  assert.match(output.hookSpecificOutput.permissionDecisionReason, /implicit assistant team semantics/i);
 });

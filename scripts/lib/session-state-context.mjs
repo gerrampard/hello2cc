@@ -10,6 +10,21 @@ import {
   normalizeSessionId,
 } from './session-state-store.mjs';
 
+function normalizePromptSignals(signals = {}) {
+  return {
+    plan: Boolean(signals?.plan),
+    compare: Boolean(signals?.compare),
+    teamWorkflow: Boolean(signals?.teamWorkflow),
+    proactiveTeamWorkflow: Boolean(signals?.proactiveTeamWorkflow),
+    teamSemantics: Boolean(signals?.teamSemantics),
+    swarm: Boolean(signals?.swarm),
+    wantsWorktree: Boolean(signals?.wantsWorktree),
+    boundedImplementation: Boolean(signals?.boundedImplementation),
+    diagram: Boolean(signals?.diagram),
+    decisionHeavy: Boolean(signals?.decisionHeavy),
+  };
+}
+
 /**
  * Builds the in-memory session snapshot from hook payload fields and transcript hints.
  */
@@ -133,4 +148,17 @@ export function rememberRouteStateSignature(sessionId, signature = '') {
       lastRouteStateSignature: nextSignature,
     };
   });
+}
+
+/**
+ * Stores prompt-derived routing hints so later pre-tool hooks can harden native behavior.
+ */
+export function rememberPromptSignals(sessionId, signals = {}) {
+  const key = normalizeSessionId(sessionId);
+  if (!key) return {};
+
+  return mutateSessionEntry(key, (current) => ({
+    ...current,
+    lastPromptSignals: normalizePromptSignals(signals),
+  }));
 }

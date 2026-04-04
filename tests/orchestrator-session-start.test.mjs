@@ -16,12 +16,13 @@ test('session-start exposes hello2cc as host-state and adapter only', () => {
   const context = output.hookSpecificOutput.additionalContext;
   const state = parseAdditionalContextJson(context);
 
-  assert.equal(state.protocol_adapters.semantic_routing, 'model_decides');
+  assert.equal(state.protocol_adapters.semantic_routing, 'host_guarded_model_decides');
   assert.equal(state.protocol_adapters.explicit_tool_input_wins, true);
   assert.equal(state.protocol_adapters.agent_model, 'fill_safe_claude_slot_if_missing');
   assert.equal(state.protocol_adapters.send_message_summary, 'fill_if_missing');
+  assert.equal(state.operator_profile, 'opus-compatible-claude-code');
   assert.equal(state.session.model, 'opus');
-  assert.match(context, /host state only/i);
+  assert.match(context, /Opus-compatible/i);
 });
 
 test('session-start surfaces host tools and native agents as structured state', () => {

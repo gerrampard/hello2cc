@@ -48,15 +48,18 @@ test('subagent-context exposes plain worker capability as structured state', () 
     agent_type: 'general-purpose',
   }, env);
   const state = parseAdditionalContextJson(output.hookSpecificOutput.additionalContext);
+  const context = output.hookSpecificOutput.additionalContext;
 
   assert.equal(state.hello2cc_role, 'host-state');
-  assert.equal(state.semantic_routing, 'model_decides');
+  assert.equal(state.operator_profile, 'opus-compatible-claude-code');
+  assert.equal(state.semantic_routing, 'host_guarded_model_decides');
   assert.equal(state.mode, 'General-Purpose');
   assert.equal(state.can_write, true);
   assert.equal(state.teammate, undefined);
+  assert.match(context, /one-sentence judgment first/i);
 });
 
-test('subagent-context exposes teammate identity without adding workflow prose', () => {
+test('subagent-context exposes teammate identity and includes team workflow guidance', () => {
   const env = isolatedEnv();
   const output = run('general', {
     session_id: 'team-worker',
@@ -64,11 +67,15 @@ test('subagent-context exposes teammate identity without adding workflow prose',
     agent_type: 'general-purpose',
   }, env);
   const state = parseAdditionalContextJson(output.hookSpecificOutput.additionalContext);
+  const context = output.hookSpecificOutput.additionalContext;
 
   assert.equal(state.mode, 'General-Purpose');
   assert.equal(state.teammate.agent, 'frontend-dev');
   assert.equal(state.teammate.team, 'delivery-squad');
   assert.equal(state.teammate.coordination_channel, 'SendMessage');
+  assert.match(context, /TaskList/);
+  assert.match(context, /TaskUpdate/);
+  assert.match(context, /SendMessage/);
 });
 
 test('subagent-context keeps Explore on explicit read-only capability', () => {
@@ -79,8 +86,10 @@ test('subagent-context keeps Explore on explicit read-only capability', () => {
     agent_type: 'Explore',
   }, env);
   const state = parseAdditionalContextJson(output.hookSpecificOutput.additionalContext);
+  const context = output.hookSpecificOutput.additionalContext;
 
   assert.equal(state.mode, 'Explore');
   assert.equal(state.capability, 'read-only-search');
   assert.equal(state.can_write, false);
+  assert.match(context, /compact Markdown table/i);
 });

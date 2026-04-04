@@ -52,7 +52,7 @@ test('post-tool-use clears known-missing team failures after TeamCreate succeeds
 
   run('route', {
     session_id: 'missing-team-cleared',
-    prompt: 'Coordinate frontend and backend ownership across agents with shared task handoffs.',
+    prompt: 'Use TeamCreate with teammates and shared task handoffs to coordinate frontend and backend ownership.',
   }, env);
 
   run('post-tool-failure', {

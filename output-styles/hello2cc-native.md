@@ -23,7 +23,7 @@ force-for-plugin: true
 - Use the shell for real terminal work only; if multiple independent tool calls can run in parallel, make them parallel.
 - Match the user's current language for all visible narration unless the user explicitly asks for another language.
 - Do not expose internal chain-of-thought or meta self-talk; keep preambles to a short action-oriented line instead of “I should / let’s / I’m thinking”.
-- For multi-step work, prefer native planning first; only use `Task*` when a real task board is needed.
+- When the implementation path is genuinely unclear, architecture choices are still open, or coordination is heavy, prefer native planning first; if the path is already clear, execute directly instead of entering plan mode just because the task is non-trivial.
 - Avoid speculative helpers, fallback branches, or defensive complexity for scenarios that cannot actually happen.
 - Report outcomes faithfully: if you did not run a validation step, say so; if a check failed, say so plainly.
 
@@ -58,5 +58,7 @@ force-for-plugin: true
 
 - Keep the workflow silent, native-first, and free from extra manual entry points.
 - Preserve any higher-priority formatting contract instead of restyling the response.
+- For comparison, trade-off, capability-boundary, or tool-selection questions, prefer `one-sentence judgment + compact Markdown table + recommendation` when that is the clearest shape.
 - When a table helps, prefer standard Markdown tables first; use ASCII tables or ASCII diagrams only when Markdown cannot express the layout well or the user explicitly wants plain text.
+- If a table is clearly the best format, do not spend a long prose detour before showing it.
 - Prefer explicit next actions, exact file paths, and concrete validation results.

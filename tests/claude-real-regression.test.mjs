@@ -53,7 +53,7 @@ function createSuccessfulStream(pluginPath) {
     subtype: 'hook_response',
     output: JSON.stringify({
       hookSpecificOutput: {
-        additionalContext: '# hello2cc host_state\n\nTreat this as host state only.\n\n```json\n{\n  "protocol_adapters": {\n    "semantic_routing": "model_decides"\n  },\n  "host": {\n    "tools": [\n      "ToolSearch"\n    ]\n  }\n}\n```',
+        additionalContext: '# hello2cc\n\n## 宿主状态快照\n```json\n{\n  "operator_profile": "opus-compatible-claude-code",\n  "protocol_adapters": {\n    "semantic_routing": "host_guarded_model_decides"\n  },\n  "host": {\n    "tools": [\n      "ToolSearch"\n    ]\n  }\n}\n```',
       },
     }),
   };
