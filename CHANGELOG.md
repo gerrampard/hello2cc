@@ -1,141 +1,193 @@
-# Changelog
+# 更新日志
+
+## 0.4.3 - 2026-04-04
+
+- 围绕 #10 调整插件配置项顺序，将 `compatibility_mode` 前移到表单首位，减少“字段不存在”的误判
+- 补充中英文 README 排错说明，明确旧版本配置分页与升级/重装路径
+- 保持 `compatibility_mode` 语义与 `sanitize-only` 共存模式不变，仅修复配置可发现性问题
+
+## 0.4.2 - 2026-04-04
+
+- 将 hello2cc 落地为 Claude Code 风格的三层结构：宿主能力策略、提示词规则编译、调用后 fail-closed 校验
+- 新增 capability policy registry，统一约束 skills / ToolSearch / MCP / Agent / TeamCreate / EnterWorktree / task tracking 的适用边界
+- 将 `TeamCreate` 与 `EnterWorktree` 纳入前置校验链，并清理旧版 route/session 意图路由辅助模块
+
+## 0.4.1 - 2026-04-04
+
+- 恢复宿主侧意图持久化与 pre-tool 参数纠偏，减少普通并行任务误入 team / worktree 路径的问题
+- 补强面向比较题、能力题与子代理场景的原生输出骨架，让第三方模型更接近 Claude Code 原生习惯
+- 扩展相关回归测试与真实链路校验，确保新版路由、team 语义与 subagent 上下文保持一致
+
+## 0.4.0 - 2026-04-04
+
+- 将 hello2cc 从“语义路由器”收敛为“宿主状态提供者 + 协议适配器 + 失败防抖器”，把 plan / team / swarm / tool 选择权彻底还给主模型
+- SessionStart / UserPromptSubmit / SubagentStart 改为输出紧凑的结构化宿主状态，而不再注入大段硬编码路由文本，显著降低多语言误触发与 UI 重绘压力
+- `Agent` / `SendMessage` / `WebSearch` / worktree / team 相关兼容逻辑只保留确定性的协议修正和失败记忆，不再基于关键词猜测意图
+- 删除旧的 prompt 分类器与大量硬编码模式表，测试同步改为围绕结构化状态与失败恢复行为验证
+
+## 0.3.6 - 2026-04-04
+
+- 收紧 plan / swarm / team 的误触发条件，减少只输入一段需求就被过度路由到计划或并行代理的问题
+- 为代理链路下的 `WebSearch` 增加失败记忆与智能恢复，避免同一失败条件下机械重试，同时在链路恢复后自动重新放行探测
+- 继续保持主线程更接近 Claude Code 原生习惯，降低无谓干预
+
+## 0.3.5 - 2026-04-03
+
+- 按职责拆分过大的核心脚本与专题测试，降低后续修改时的遗漏和回归风险
+- 保持现有路由、会话记忆、校验与回归行为不变，继续维持当前使用方式
+- 修正文档中的配置数量与重装说明，使 README 与实际情况保持一致
+
+## 0.3.4 - 2026-04-03
+
+- 修复 worktree 失败记忆相关回归测试在 Linux 发布环境下的路径兼容问题，恢复发版校验稳定性
+- 保持 0.3.3 的功能修复不变，确保自动解封与 fail-closed 行为可以稳定通过跨平台验证
+
+## 0.3.3 - 2026-04-03
+
+- 修复 worktree 前提失败后在同一 session 中拦截过于保守的问题，避免环境已恢复后仍持续 deny
+- 当当前 cwd 已进入 git 仓库，或已补上 `WorktreeCreate` hooks 时，自动解除陈旧的 worktree 失败记忆，恢复原生 `EnterWorktree` / `Agent(isolation=worktree)` 路径
+- 继续保持只对宿主已明确证明不成立的确定性前提错误执行 fail-closed，减少机械重试，同时不影响正常原生工具与 agent 使用
+
+## 0.3.2 - 2026-04-03
+
+- 强化持续协作型多 agent 任务的原生 team 路径，先建团队、再建 task board、再派 teammate，减少团队刚启动就跑偏
+- 明确区分只读 teammate 与可写 teammate 的适用场景，减少把实现任务误派给只读 agent 导致的空转
+- 增强 team 内任务认领、交接、恢复引导，降低 idle、`0 tool uses`、task 失配后直接卡住的概率
+
+## 0.3.1 - 2026-04-03
+
+- 调整多 agent 路由，让一次性并行任务与持续协作任务更容易走到合适的原生路径
+- 让持续协作型任务更容易主动进入团队流程，减少“该用 team 却没用”的情况
+- 为纯文本 `SendMessage` 增加兼容处理，减少 `summary is required when message is a string` 错误
+- 更新 README，补充安装、使用、升级与排错说明
+
+## 0.3.0 - 2026-04-02
+
+- 提升第三方模型对当前会话可用能力的识别，减少明明已有 skill / workflow 却没接着用的问题
+- 修复在已知 MCP resource、已可直接调用工具或已加载流程时仍反复泛搜的问题
+- 优化不同内建 agent 的分工，减少研究、规划、实现混用造成的低效
+
+## 0.2.10 - 2026-04-02
+
+- 修复第三方模型即使已经看到 surfaced skill，仍重复发现或重写流程的问题
+- 增强对已加载 skill / workflow 连续体的识别，减少同一流程被反复重新加载
+- 进一步区分 surfaced skill、`DiscoverSkills` 与 `ToolSearch` 的适用场景，减少绕路
+
+## 0.2.9 - 2026-04-02
+
+- 修复第三方模型过度偏向少数原生工具、忽视宿主已暴露 skill / workflow 的问题
+- 让已有流程更容易被继续使用，而不是每次从头摸索
+- 明确 `Skill`、`DiscoverSkills`、`ToolSearch` 各自负责的场景，减少误用
 
 ## 0.2.8 - 2026-04-02
 
-- Added softer native `WebSearch` guidance for real-time / latest-information questions so hello2cc encourages the host's built-in search path without pretending the plugin itself can create missing network capability
-- Added authenticity-focused proxy guidance: custom `ANTHROPIC_BASE_URL` sessions are still encouraged to try native `WebSearch`, but the model is reminded to treat `Did 0 searches`, missing links, or missing search hits as “not actually searched” instead of presenting memory as a real web result
-- Added regression coverage to keep this boundary stable: hello2cc should not hard-disable `WebSearch` just because a custom proxy is present, but it should keep result-truthfulness guidance intact
+- 修复代理链路下对 `WebSearch` 过度悲观的问题，仍优先尝试宿主原生 WebSearch
+- 避免在 `Did 0 searches` 等情况下把记忆误当成真实联网结果
 
 ## 0.2.7 - 2026-04-02
 
-- Added a true `default_agent_model` option so users can define one native-safe default agent model preference without having to overuse per-agent overrides
-- Normalized `opus(1M)` to the host-safe `opus` agent slot while keeping the actual Opus-family landing point in the user's external model mapping layer such as CCSwitch
-- Kept `Thinking` / reasoning model routing out of hello2cc's responsibility boundary so the plugin stays focused on native agent behavior instead of duplicating provider or session model wiring
-- Added persistent `wantsWorktree` intent tracking plus `PreToolUse(Agent)` isolation sanitization so ordinary parallel workers no longer accidentally inherit `worktree` isolation unless the user explicitly asked for it
-- Added `compatibility_mode = sanitize-only` so hello2cc can coexist more safely with other hook-heavy plugins by keeping only `Agent` input sanitization and suppressing extra SessionStart / UserPromptSubmit / SubagentStart overlays
-- Expanded regression coverage for default agent model handling, `opus(1M)` normalization, worktree isolation sanitization, and sanitize-only compatibility mode
-- Refreshed the README to focus on practical usage, installation, upgrade, configuration, and CCSwitch pairing guidance instead of implementation details
+- 围绕 #7 新增统一的默认 Agent 模型配置，减少每个 Agent 单独设置后仍不生效的问题
+- 围绕 #7 兼容 Opus 默认模型的常见写法，保证默认配置更稳可用
+- 围绕 #8 修复普通并行 worker 意外继承 worktree 隔离的问题，减少 subagent 创建失败和 0 tool uses
+- 围绕 #9 增加共存兼容模式，减少与 OMC 等同类插件同时启用时的提示冲突
 
 ## 0.2.6 - 2026-04-01
 
-- Fixed the ordinary-dialogue agent path so hello2cc now strips implicit teammate fields outside real team workflows, preventing third-party models from accidentally turning plain subagent work into `team=main` / `team=default` teammate spawns
-- Blocked assistant-mode placeholder team names such as `main` and `default` from being treated as real reusable team identities until a real `TeamCreate` workflow has established an explicit team
-- Tightened the native guidance and output style so visible narration follows the user's current language more closely and avoids verbose meta self-talk, making third-party models feel more like Claude Code's native coordinator style in Chinese sessions
-- Added focused regression coverage for reserved assistant-team names, explicit-team gating, and the updated language/style guidance so the issue #6 family does not regress
+- 围绕 #6 修复普通 subagent 被误当成 team teammate 的问题
+- 阻止 `main` / `default` 这类占位团队名造成误路由
+- 优化中文会话下的原生表达风格
 
 ## 0.2.5 - 2026-04-01
 
-- Fixed native `Agent.model` injection for Claude Code `2.1.76+` by constraining hello2cc to host-safe `opus / sonnet / haiku` agent slots instead of passing arbitrary third-party aliases that newer Claude Code versions reject with `Invalid tool parameters`
-- Added slot normalization and fallback logic so full Claude model IDs such as `claude-opus-*` / `claude-sonnet-*` still collapse back to the correct native agent slot when hello2cc needs to inject a built-in agent override
-- Updated plugin option copy and README guidance to make the boundary explicit: third-party aliases belong in provider / gateway / ccswitch mapping, while hello2cc model override fields should stay on native Claude slots
-- Added focused regression coverage for unsupported agent override aliases, slot fallback behavior, and supported-slot coercion so issue #4 does not regress
-- Added real Claude CLI install smoke coverage for the self-marketplace install path (`marketplace add` → `plugin install` → `plugin list`) to continuously guard the supported `2.1.76+` range against self-install / reload regressions reported in issue #3
+- 围绕 #4 修复新版本 Claude Code 对 `Agent.model` 校验更严格后，第三方别名容易报错的问题
+- 将模型 override 收敛到宿主安全槽位，减少 `Invalid tool parameters`
+- 围绕 #3 提高本地安装与升级路径的稳定性
 
 ## 0.2.4 - 2026-04-01
 
-- Hardened `scripts/claude-real-regression.mjs` so real-session checks now auto-detect both `plugin` and `plugins` Claude Code CLI forms instead of assuming only one command spelling
-- Added Windows fallback execution through PATH command resolution when `APPDATA\\npm\\claude.ps1` is missing, making local real-regression runs less fragile across shell and install layouts
-- Restored the original plugin enabled / disabled state after temporary real-regression enablement, so test runs no longer leave the user's Claude Code plugin state mutated
-- Preserved the original Claude CLI failure in real-regression output and appended restore failures when both happen, making debugging much clearer without reviving removed legacy compatibility files
-- Added focused automated coverage for missing Claude CLI, singular plugin command support, Windows/PATH fallback, and restore-error reporting
+- 修复在不同 Claude CLI 调用形式与 Windows 环境下本地验证容易失效的问题
+- 避免检查后残留用户插件启用状态
+- 改进失败信息，减少排障成本
 
 ## 0.2.3 - 2026-04-01
 
-- Removed the old `scripts/notify.mjs` compatibility shim and its tests so the public plugin no longer ships legacy notification / hook bridge baggage
-- Tightened the main agent, output style, and routing overlays toward a stricter native-first policy: no `TodoWrite` fallback wording, no web-fallback wording, and no capability-withdrawal phrasing in the model-facing guidance
-- Dropped transcript-level transport diagnostics from the model-facing prompt path so hello2cc no longer injects proxy / compatibility commentary into the active Claude Code session
-- Split the oversized native-context orchestration into focused guidance modules so the transport-safety logic stays maintainable while preserving the same exported plugin behavior
+- 移除遗留兼容包袱，减少对当前会话的多余干扰
+- 收紧路由与输出提示，避免向模型注入无关的代理或兼容性评论
+- 让主会话更接近安静的 native-first 行为
 
 ## 0.2.2 - 2026-04-01
 
-- Re-aligned hello2cc's multi-worker guidance with Claude Code's native worker flow: parallel work now prefers multiple `Agent` launches first instead of over-promoting `TeamCreate` for ordinary research / implement / verify turns
-- Added explicit guidance to wait for worker completion notifications and use `SendMessage` / `TaskStop` for continuation or correction, instead of nudging models toward polling ordinary worker results via `TaskOutput`
-- Kept native task-board support for explicit checklist / task-board requests, while stopping the plugin from pushing `TaskCreate` / `TaskList` / `TaskUpdate` as the default for every complex task
-- Updated the default main-agent overlay, output style, route heuristics, and regression tests so third-party models stay closer to Claude Code's native coordinator behavior without interfering with higher-priority repo rules
+- 修复普通多 worker 任务过度走 `TeamCreate` 的问题
+- 改进 worker 续派与收尾方式，避免误把 `TaskOutput` 当默认轮询入口
+- 保留显式任务盘需求时的原生 `Task*` 路径
 
 ## 0.2.1 - 2026-04-01
 
-- Reduced hello2cc output-layer interference so user instructions, Claude Code host rules, and repository / user `CLAUDE.md` or `AGENTS.md` now explicitly take precedence over hello2cc overlays
-- Removed the earlier ASCII-leaning presentation bias and switched hello2cc guidance back to Markdown-first tables unless plain-text layout is explicitly needed
-- Tightened main-thread and subagent overlays so hello2cc augments native tool and agent usage without replacing project-specific wrappers, command routing, or branded response formats
-- Bumped the plugin version so Claude Code can install a fresh cache entry instead of continuing to reuse an older `0.2.0` cache payload
+- 降低 hello2cc 对已有项目规则和输出格式的干扰
+- 恢复 Markdown 优先展示，减少不必要的 ASCII 倾向
+- 让主线程和 subagent 行为更接近宿主原生
 
 ## 0.2.0 - 2026-04-01
 
-- Reworked hello2cc toward a more capability-aware native parity model so session guidance now prioritizes observed tool and agent exposure over broad keyword-triggered routing
-- Expanded native-first routing to cover `AskUserQuestion`, `SendMessage`, `TeamDelete`, `TaskGet`, `TodoWrite` fallback, `ListMcpResources`, `ReadMcpResource`, and explicit-only `EnterWorktree` handling when those capabilities are actually exposed by the host
-- Tightened prompt intent classification to reduce over-broad keyword heuristics, especially for decision routing and worktree routing, and shifted more multi-track detection to structural signals
-- Reduced overly broad agent alias normalization so model injection stays closer to real host agent identities instead of fuzzy aliases
-- Strengthened quality gates for task and subagent completion by accepting more structure-based evidence (lists, paths, commands) instead of relying only on wording cues
-- Refreshed the default main-agent overlay, forced output style guidance, README, and test coverage to reflect the quieter capability-aware native-first behavior
+- 让路由优先依据实际暴露能力，而不是宽泛关键词
+- 扩展对更多原生能力的引导，减少“有能力却不会用”的情况
+- 减少过宽的意图识别和模型注入
 
 ## 0.1.3 - 2026-03-31
 
-- Added a GitHub Actions npm publishing pipeline at `.github/workflows/publish.yml`, aligned with the helloloop release flow and supporting both tag-triggered releases and manual dispatch
-- Added npm publish metadata in `package.json` and release documentation in `README.md`, including support for both `NPM_TOKEN` and trusted-publishing based automation
-- Fixed the GitHub Actions publish workflow so npm token detection no longer relies on unsupported `secrets.*` checks inside `if:` expressions, which previously caused zero-job failed workflow runs
+- 减少 npm 发布时的手工错误和空跑
+- 修复工作流条件判断问题，提高发布稳定性
+
+## 0.1.2 - 2026-03-31
+
+- 新增自动化发布能力，减少版本发包和插件版本不一致问题
 
 ## 0.1.1 - 2026-03-31
 
-- Rebuilt more of Claude Code's host-side tasking guidance into the forced plugin output style so third-party models keep stronger native habits even when plugin output styles replace part of the host prompt composition
-- Tightened the default native main-agent, route, and subagent overlays to prefer dedicated tools before shell, parallelize independent tool calls, and report validation status more honestly
-- Added ToolSearch readiness diagnostics so hello2cc now distinguishes between “prompt the model to use ToolSearch” and “the Claude Code host actually exposed ToolSearch for this session”, with explicit remediation for third-party gateway setups
-- Added a compatibility `scripts/notify.mjs` shim so stale legacy references such as `notify.mjs inject`, `notify.mjs route`, `notify.mjs stop`, and `codex-notify` no longer fail immediately when old local hook or notification-program paths still point at hello2cc
-- Improved transcript/session-state capture so hook guidance can remember observed tool and agent availability, not only the mirrored session model
-- Expanded validation, unit tests, and real-regression diagnostics, including clearer failure reporting when Claude Code rejects the currently mapped third-party model alias before plugin hooks can run
+- 增强强制 output style 下的原生工作习惯保持能力
+- 兼容旧本地通知路径，避免历史安装升级后直接报错
+- 改进 `ToolSearch` 可用性判断与失败提示
 
 ## 0.1.0 - 2026-03-31
 
-- Promoted hello2cc to the first `0.1.0` milestone to reflect that the core architecture is now stable enough for alpha-style iteration instead of `0.0.x` patch-only experimentation
-- Kept the official-plugin-path architecture introduced in recent releases: namespaced default main agent, `force-for-plugin` output style, minimal native-agent model injection, and real Claude Code regression coverage
-- Kept the clearer default main-agent runtime id `hello2cc:native`, which better communicates that hello2cc is active in native-first mode without locking the main session model
+- 核心插件路径趋于稳定，默认使用方式更接近原生
+- 稳定主线程默认行为，减少启用后偏离原生 Claude Code 习惯的情况
 
 ## 0.0.10 - 2026-03-31
 
-- Renamed the default plugin main-agent runtime id from `hello2cc:main` to `hello2cc:native`, making the active native-first role more self-explanatory while keeping the same `model: inherit` behavior
-- Switched the plugin default agent setting to the actual namespaced runtime agent id `hello2cc:native`, matching Claude Code's plugin agent loader
-- Switched the plugin output style to Claude Code's official `force-for-plugin` path so the native-first style is applied without mutating user `settings.json`
-- Removed automatic user-settings output-style bootstrapping and the related runtime script in favor of the host-supported plugin output-style mechanism
-- Narrowed `Agent.model` injection to the places that truly need correction (`Claude Code Guide`, `Explore`, and explicit override cases), preserving Claude Code's native inherit behavior for `Plan`, `general-purpose`, and custom agents by default
-- Added `ConfigChange` handling that clears cached session model state so config swaps do not leave stale session-model mirroring behind
-- Updated validation, unit tests, and real-session regression checks for namespaced plugin agents and forced plugin output styles
+- 默认启用后更接近原生会话，不再需要额外切换主线程入口
+- 减少对用户既有 output style 和会话设置的侵入
+- 缩小 `Agent.model` 注入范围，降低对原生行为的破坏
+
+## 0.0.9 - 2026-03-31
+
+- 稳定首批 native-first 默认行为，减少首次安装后的不确定性
+- 收紧会话状态处理，减少真实使用中的不稳定
 
 ## 0.0.7 - 2026-03-31
 
-- Added a default plugin `settings.json` that activates `main` as the main-thread agent, using `model: inherit` for a more silent and native-feeling baseline
-- Added `agents/main.md` so the main thread gets stronger native-first routing, ToolSearch-first posture, and table-friendly output guidance without relying solely on output styles
-- Added transcript-based session context discovery so native `Agent.model` injection can recover the active session model alias from real Claude Code transcripts when hook payloads do not expose it directly
-- Expanded regression coverage to validate transcript-driven model mirroring and to ensure the packaged plugin exports the new default main agent
+- 默认启用主线程 agent，让插件开箱更接近原生使用
+- 支持从 transcript 恢复当前会话模型，减少缺少 model 时的误注入
 
 ## 0.0.6 - 2026-03-31
 
-- Added current-session model mirroring so missing native `Agent.model` values can inherit the active Claude Code model alias (for example `opus`) instead of relying on hard-coded defaults
-- Added automatic user-scope `outputStyle` bootstrapping with `user-if-unset` / `force-user` / `off` policies, applied once per plugin version on `SessionStart`
-- Refactored orchestration into smaller runtime helpers for hook I/O, session state, plugin data, native routing context, and managed output style handling
-- Expanded routing and subagent guidance to prefer clearer tables for inventories, task matrices, validation summaries, and trade-off comparisons
-- Added automated tests for session-model mirroring and managed output-style bootstrapping
-- Relaxed real-session regression so it validates stable native capability exposure without requiring a preselected output style in the active user environment
+- 支持镜像当前会话模型，减少硬编码默认模型带来的偏差
+- 自动管理 output style，降低首次启用门槛
+- 改善表格型输出场景的表达
 
 ## 0.0.5 - 2026-03-30
 
-- Added finer-grained native routing for `General-Purpose`, `TeamCreate`, `TaskCreate`, `TaskUpdate`, `TaskList`, and MCP-oriented workflows
-- Added `SubagentStart` guidance for built-in `Explore`, `Plan`, and `general-purpose` agents
-- Added `SubagentStop` / `TaskCompleted` guards so native teammates must return concrete summaries, exact paths, and completion evidence
-- Added `scripts/claude-real-regression.mjs` and `npm run test:real` for local real-session Claude Code regression checks
-- Made `UserPromptSubmit` routing robust to structured prompt payloads seen in real Claude Code sessions
-- Kept the orchestration layer compatible with the currently installed Claude Code runtime by avoiding unsupported hook keys
+- 细化常见原生路径的使用建议，减少任务走错入口
+- 收紧 subagent 的开始与收尾行为，减少结果不稳定
+- 降低修改后只在真实 Claude Code 会话里才暴露问题的风险
 
 ## 0.0.2 - 2026-03-30
 
-- Removed all bundled `skills/` from the core plugin to make `hello2cc` fully skill-free by default
-- Stopped exposing `skills` in `.claude-plugin/plugin.json` and enforced this in validation
-- Simplified runtime prompts and output style so the plugin no longer mentions manual skill fallbacks
-- Updated tests, packaging metadata, and Chinese README for the skill-free native-first architecture
+- 移除内嵌 skills，避免插件自身技能体系干扰宿主原生路径
+- 简化提示与输出风格，走更干净的 native-first 基线
 
 ## 0.0.1 - 2026-03-30
 
-- Switched `hello2cc` to a native-first routing model instead of skill-first prompt routing
-- Fixed `PreToolUse(Agent)` model injection to use Claude Code’s documented permission fields
-- Added one-time selectable `hello2cc Native` output style for silent, persistent formatting behavior
-- Added automated validation and unit tests for routing and model injection
-- Rewrote `README.md` for public release and GitHub distribution
+- 切换为 native-first 路由
+- 修复 `Agent.model` 注入字段
+- 新增原生输出风格和基础自动化校验

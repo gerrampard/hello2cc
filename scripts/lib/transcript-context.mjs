@@ -1,77 +1,23 @@
 import { existsSync, readFileSync } from 'node:fs';
 import {
-  deriveAgentCapabilities,
-  deriveToolCapabilities,
-  normalizeAgentTypes,
-  normalizeToolNames,
-} from './session-capabilities.mjs';
+  interactionSnapshotFromRecord,
+  sessionSnapshotFromRecord,
+  teamSnapshotFromRecord,
+} from './transcript-context-extractors.mjs';
+import { mergeSnapshot } from './transcript-context-merge.mjs';
+import {
+  isSessionRecord,
+  isSessionSystemRecord,
+  normalizePath,
+  parseJsonLine,
+} from './transcript-context-utils.mjs';
 
-function parseJsonLine(line) {
-  try {
-    return JSON.parse(line);
-  } catch {
-    return null;
-  }
-}
-
-function normalizePath(path) {
-  return String(path || '').trim();
-}
-
-function recordSessionId(record) {
-  return String(record?.session_id || record?.sessionId || '').trim();
-}
-
-function isSessionSystemRecord(record, sessionId) {
-  if (!record || record.type !== 'system') return false;
-  if (sessionId && recordSessionId(record) && recordSessionId(record) !== sessionId) {
-    return false;
-  }
-
-  return true;
-}
-
-function isSessionRecord(record, sessionId) {
-  if (!record || typeof record !== 'object') return false;
-  if (sessionId && recordSessionId(record) && recordSessionId(record) !== sessionId) {
-    return false;
-  }
-
-  return true;
-}
-
-function sessionSnapshotFromRecord(record) {
-  if (!record || typeof record !== 'object') return {};
-
-  const mainModel = String(record.model || '').trim();
-  const outputStyle = String(record.output_style || '').trim();
-  const toolNames = normalizeToolNames(record.tools);
-  const agentTypes = normalizeAgentTypes(record.agents);
-
-  return {
-    ...(mainModel ? { mainModel } : {}),
-    ...(outputStyle ? { outputStyle } : {}),
-    ...(toolNames.length ? { toolNames } : {}),
-    ...(agentTypes.length ? { agentTypes } : {}),
-    ...(toolNames.length ? deriveToolCapabilities(toolNames) : {}),
-    ...(agentTypes.length ? deriveAgentCapabilities(agentTypes) : {}),
-  };
-}
-
-function teamSnapshotFromRecord(record) {
-  if (!record || typeof record !== 'object') return {};
-
-  const teamName = String(record.teamName || record.team_name || '').trim();
-  const agentName = String(record.agentName || record.agent_name || '').trim();
-
-  return {
-    ...(teamName ? { teamName } : {}),
-    ...(agentName ? { agentName } : {}),
-  };
-}
-
+/**
+ * Extracts the best-effort session context snapshot from a Claude transcript file.
+ */
 export function extractSessionContextFromTranscript(transcriptPath, sessionId = '') {
   const path = normalizePath(transcriptPath);
+  const normalizedSessionId = String(sessionId || '').trim();
   if (!path || !existsSync(path)) return {};
 
   try {
@@ -85,24 +31,23 @@ export function extractSessionContextFromTranscript(transcriptPath, sessionId = 
 
     let best = {};
     for (const record of records) {
-      if (!isSessionRecord(record, String(sessionId || '').trim())) continue;
+      if (!isSessionRecord(record, normalizedSessionId)) continue;
 
       const teamSnapshot = teamSnapshotFromRecord(record);
       if (Object.keys(teamSnapshot).length > 0) {
-        best = {
-          ...best,
-          ...teamSnapshot,
-        };
+        best = mergeSnapshot(best, teamSnapshot);
       }
 
-      if (!isSessionSystemRecord(record, String(sessionId || '').trim())) continue;
+      const interactionSnapshot = interactionSnapshotFromRecord(record);
+      if (Object.keys(interactionSnapshot).length > 0) {
+        best = mergeSnapshot(best, interactionSnapshot);
+      }
+
+      if (!isSessionSystemRecord(record, normalizedSessionId)) continue;
 
       const snapshot = sessionSnapshotFromRecord(record);
       if (Object.keys(snapshot).length === 0) continue;
-      best = {
-        ...best,
-        ...snapshot,
-      };
+      best = mergeSnapshot(best, snapshot);
     }
 
     return best;

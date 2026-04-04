@@ -1,8 +1,8 @@
 {
   "name": "hello2cc",
-  "version": "0.2.8",
+  "version": "0.4.3",
   "type": "module",
-  "description": "Silent, native-first Claude Code plugin that steers third-party models toward Claude-style tools, agents, tasks, teams, MCP workflows, and concise native output.",
+  "description": "Thin Claude Code plugin that exposes host state, adapts protocol edges, and debounces repeated failures for third-party models.",
   "license": "Apache-2.0",
   "publishConfig": {
     "access": "public"
@@ -16,6 +16,7 @@
     "url": "https://github.com/hellowind777/hello2cc/issues"
   },
   "scripts": {
+    "release:notes": "node ./scripts/generate-release-notes.mjs",
     "validate": "node ./scripts/validate-plugin.mjs .",
     "test": "node --test",
     "test:real": "node ./scripts/claude-real-regression.mjs",

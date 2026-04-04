@@ -1,23 +1,34 @@
 #!/usr/bin/env node
-import { normalizeAgentIsolation, normalizeAgentTeamSemantics } from './lib/agent-input.mjs';
+import {
+  normalizeAgentIsolation,
+  normalizeAgentTeamSemantics,
+  normalizeEnterWorktreeInput,
+  normalizeTeamCreateInput,
+} from './lib/agent-input.mjs';
 import { configuredModels, shouldEmitAdditionalContext } from './lib/config.mjs';
 import { resolvedAgentModelOverride } from './lib/agent-models.mjs';
 import {
   allowWithUpdatedInput,
+  denyToolUse,
   emptySuppress,
   maybeDumpPayload,
   readStdinJson,
   suppressHook,
 } from './lib/hook-io.mjs';
-import { buildRouteSteps, buildSessionStartContext, extractPromptText } from './lib/native-context.mjs';
+import { buildRouteContext, buildSessionStartContext, extractPromptText } from './lib/native-context.mjs';
+import { normalizeSendMessageInput } from './lib/send-message-input.mjs';
 import {
   clearAllSessionContexts,
   clearSessionContext,
+  rememberIntentProfile,
+  rememberRouteStateSignature,
+  rememberToolFailure,
+  rememberToolSuccess,
   rememberSessionContext,
-  rememberPromptSignals,
   readSessionContext,
 } from './lib/session-state.mjs';
-import { classifyPrompt, isSubagentPrompt, startsWithExplicitCommand } from './lib/prompt-signals.mjs';
+import { analyzeIntentProfile } from './lib/intent-profile.mjs';
+import { isSubagentPrompt, startsWithExplicitCommand } from './lib/prompt-signals.mjs';
 
 const cmd = process.argv[2] || '';
 
@@ -47,23 +58,33 @@ async function cmdRoute() {
 
   const prompt = extractPromptText(payload).trim();
   if (!prompt || startsWithExplicitCommand(prompt) || isSubagentPrompt(prompt)) {
+    rememberIntentProfile(payload?.session_id, {});
     emptySuppress();
     return;
   }
 
-  const signals = classifyPrompt(prompt);
-  rememberPromptSignals(payload?.session_id, signals);
+  const signals = analyzeIntentProfile(prompt, sessionContext);
+  rememberIntentProfile(payload?.session_id, signals);
 
   if (!shouldEmitAdditionalContext()) {
     emptySuppress();
     return;
   }
 
-  const additionalContext = buildRouteSteps(prompt, sessionContext);
+  const additionalContext = buildRouteContext(prompt, sessionContext);
   if (!additionalContext) {
+    rememberRouteStateSignature(payload?.session_id, '');
     emptySuppress();
     return;
   }
+
+  const signature = additionalContext;
+  if (!signature || sessionContext?.lastRouteStateSignature === signature) {
+    emptySuppress();
+    return;
+  }
+
+  rememberRouteStateSignature(payload?.session_id, signature);
 
   suppressHook('UserPromptSubmit', additionalContext);
 }
@@ -79,7 +100,17 @@ async function cmdPreAgentModel() {
   }
 
   const teamNormalization = normalizeAgentTeamSemantics(input, sessionContext);
+  if (teamNormalization.blocked) {
+    denyToolUse(teamNormalization.reason);
+    return;
+  }
+
   const isolationNormalization = normalizeAgentIsolation(teamNormalization.input, sessionContext);
+  if (isolationNormalization.blocked) {
+    denyToolUse(isolationNormalization.reason);
+    return;
+  }
+
   const override = resolvedAgentModelOverride(isolationNormalization.input, configuredModels(sessionContext));
   if (!override.model && !teamNormalization.changed && !isolationNormalization.changed) {
     emptySuppress();
@@ -102,6 +133,65 @@ async function cmdPreAgentModel() {
   );
 }
 
+async function cmdPreEnterWorktree() {
+  const payload = readStdinJson('orchestrator.mjs');
+  const sessionContext = currentSessionContext(payload);
+  const input = payload.tool_input || {};
+
+  if (payload.tool_name && payload.tool_name !== 'EnterWorktree') {
+    emptySuppress();
+    return;
+  }
+
+  const normalization = normalizeEnterWorktreeInput(input, sessionContext);
+  if (normalization.blocked) {
+    denyToolUse(normalization.reason);
+    return;
+  }
+
+  emptySuppress();
+}
+
+async function cmdPreTeamCreate() {
+  const payload = readStdinJson('orchestrator.mjs');
+  const sessionContext = currentSessionContext(payload);
+  const input = payload.tool_input || {};
+
+  if (payload.tool_name && payload.tool_name !== 'TeamCreate') {
+    emptySuppress();
+    return;
+  }
+
+  const normalization = normalizeTeamCreateInput(input, sessionContext);
+  if (normalization.blocked) {
+    denyToolUse(normalization.reason);
+    return;
+  }
+
+  emptySuppress();
+}
+
+async function cmdPreSendMessage() {
+  const payload = readStdinJson('orchestrator.mjs');
+  const input = payload.tool_input || {};
+
+  if (payload.tool_name && payload.tool_name !== 'SendMessage') {
+    emptySuppress();
+    return;
+  }
+
+  const normalization = normalizeSendMessageInput(input);
+  if (!normalization.changed) {
+    emptySuppress();
+    return;
+  }
+
+  allowWithUpdatedInput(
+    normalization.input,
+    normalization.reason,
+  );
+}
+
 async function cmdConfigChange() {
   const payload = readStdinJson('orchestrator.mjs');
   const source = String(payload?.source || '').trim();
@@ -116,6 +206,18 @@ async function cmdConfigChange() {
   emptySuppress();
 }
 
+async function cmdPostToolFailure() {
+  const payload = readStdinJson('orchestrator.mjs');
+  rememberToolFailure(payload);
+  emptySuppress();
+}
+
+async function cmdPostToolUse() {
+  const payload = readStdinJson('orchestrator.mjs');
+  rememberToolSuccess(payload);
+  emptySuppress();
+}
+
 async function main() {
   switch (cmd) {
     case 'session-start':
@@ -127,8 +229,23 @@ async function main() {
     case 'pre-agent-model':
       await cmdPreAgentModel();
       break;
+    case 'pre-enter-worktree':
+      await cmdPreEnterWorktree();
+      break;
+    case 'pre-team-create':
+      await cmdPreTeamCreate();
+      break;
+    case 'pre-send-message':
+      await cmdPreSendMessage();
+      break;
     case 'config-change':
       await cmdConfigChange();
+      break;
+    case 'post-tool-failure':
+      await cmdPostToolFailure();
+      break;
+    case 'post-tool-use':
+      await cmdPostToolUse();
       break;
     default:
       process.stderr.write(`orchestrator.mjs: unknown command "${cmd}"\n`);
