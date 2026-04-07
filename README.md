@@ -15,16 +15,16 @@ Its job is simpler:
 
 ---
 
-## 🆕 What changed in 0.4.6
+## 🆕 What changed in 0.4.7
 
-Compared with `0.4.5`, this patch release focuses on making current-info, web search, and multi-step execution align more closely with native Claude Code behavior:
+Compared with `0.4.6`, this patch release focuses on removing a non-native team retry interruption so team behavior stays closer to Claude Code itself:
 
-| 0.4.6 change | What you should notice |
+| 0.4.7 change | What you should notice |
 |---|---|
-| Stronger current-info web search shaping | Compare-style prompts are more likely to start with short real searches instead of overloaded queries |
-| Better `Did 0 searches` recovery | Failed or empty web-search turns are less likely to be mistaken for valid search results |
-| Task tracking separated from team routing | Complex multi-step work is more likely to stay on task tracking unless true team collaboration is needed |
-| More language-agnostic structural intent signals | Slash-pair comparisons and structured prompts are routed more reliably without depending on keyword matches |
+| Removed plugin-side missing-team pre-deny | Explicit teammate retries no longer get blocked early by a hello2cc red warning |
+| Closer native team failure path | Missing or deleted teams now fall back to Claude Code's own TeamCreate / spawnTeam error path |
+| Cleaner teammate retry behavior | Re-running a teammate after a missing-team failure no longer gets short-circuited by plugin memory alone |
+| README and release guidance updated | Upgrade notes now describe the team retry behavior that changed from `0.4.6` |
 
 ---
 
@@ -172,12 +172,12 @@ Good when you want most agents to use the same Claude slot.
 If your real target model is mapped through **CCSwitch**, keep the actual mapping there.  
 In `hello2cc`, prefer stable Claude slot values such as `inherit`, `opus`, `sonnet`, or `haiku`.
 
-### What 0.4.6 especially improves
+### What 0.4.7 especially improves
 
-- Shapes current-info and compare prompts into cleaner real-search steps first
-- Recovers more safely when `WebSearch` returns `Did 0 searches`
-- Uses task tracking for complex non-team work before fanning out plain agents
-- Reduces keyword-dependent routing by leaning more on structural intent detection
+- Removes the plugin-side red deny for explicit teammate retries after a missing-team failure
+- Leaves missing-team handling on the native Claude Code team tool path
+- Keeps explicit team retries closer to native Claude Code / Opus behavior
+- Preserves existing continuity tracking without turning it into an early hard stop
 
 ---
 
@@ -247,10 +247,15 @@ If several plugins are injecting guidance, keep one dominant behavior-alignment 
 Update to the latest version, reload the session, and reinstall if needed.  
 Recent versions add a compatibility layer for plain-text `SendMessage`.
 
+### Team retries show a hello2cc red deny after a missing or deleted team
+
+Update to `0.4.7`, then reload the plugin cleanly.  
+This version removes the plugin-side pre-deny for explicit teammate retries, so missing-team handling falls back to Claude Code's native team error path instead.
+
 ### Current-info or compare tasks keep missing web results
 
-Update to `0.4.6`, then reload the plugin cleanly.  
-This version tightens short-query shaping and treats `Did 0 searches` as an empty search attempt instead of a successful result.
+Update to `0.4.6` or later, then reload the plugin cleanly.  
+Recent versions tighten short-query shaping and treat `Did 0 searches` as an empty search attempt instead of a successful result.
 
 ---
 

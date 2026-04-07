@@ -15,16 +15,16 @@
 
 ---
 
-## 🆕 0.4.6 相对 0.4.5 的变化
+## 🆕 0.4.7 相对 0.4.6 的变化
 
-这次补丁版重点是把 current-info、WebSearch 和多步骤执行继续往原生 Claude Code 的行为上收紧：
+这次补丁版重点是去掉一个不够原生的 team 重试拦截，让 team 行为继续向 Claude Code 原生路径靠拢：
 
-| 0.4.6 变化 | 你更容易感受到的结果 |
+| 0.4.7 变化 | 你更容易感受到的结果 |
 |---|---|
-| current-info 搜索整形更严格 | 对比类问题更容易先发起短而真实的搜索，而不是把整段需求塞进单条 query |
-| `Did 0 searches` 恢复更稳 | 空搜索或失败搜索不再更容易被误当成“已经搜到了结果” |
-| task tracking 与 team 路由进一步解耦 | 复杂多步骤任务更容易先走 task tracking，只有真正需要协作时才升级到 team |
-| 结构化语义信号继续增强 | 对 slash-pair 对比和结构化输入的判断更少依赖关键词命中 |
+| 去掉插件侧 missing-team 前置 deny | 显式 teammate 重试不再先被 hello2cc 红字拦截 |
+| team 失败路径更贴近原生 Claude Code | team 缺失或已删除时，改回走 Claude Code 自己的 TeamCreate / spawnTeam 报错路径 |
+| teammate 重试更自然 | 缺队伍后的再次尝试，不再仅凭插件记忆被提前短路 |
+| README 与升级说明同步更新 | 现在文档会直接说明 `0.4.6` 到 `0.4.7` 的 team 行为变化 |
 
 ---
 
@@ -172,12 +172,12 @@ claude plugins install hello2cc@hello2cc-local
 如果真实模型落点由 **CCSwitch** 控制，就继续把真实映射放在 CCSwitch 里。  
 在 `hello2cc` 里优先使用稳定的 Claude 槽位值，例如 `inherit`、`opus`、`sonnet`、`haiku`。
 
-### 0.4.6 特别加强了什么
+### 0.4.7 特别加强了什么
 
-- 对 current-info / 对比题先收敛成更干净的真实搜索步骤
-- 当 `WebSearch` 返回 `Did 0 searches` 时更安全地恢复
-- 对复杂但非 team 的任务先偏向 task tracking，再决定是否 fan-out 普通 agent
-- 更少依赖关键词，更偏向结构化意图判断
+- 去掉了 missing-team 之后对显式 teammate 重试的插件侧红字 deny
+- 把 missing-team 的处理还给 Claude Code 原生 team 工具路径
+- 让显式 team 重试更贴近原生 Claude Code / Opus 的行为
+- 保留 continuity 记忆，但不再把它直接变成前置硬拦截
 
 ---
 
@@ -247,10 +247,15 @@ claude plugins install hello2cc@hello2cc-local
 请升级到最新版本，重新加载会话，必要时重装插件。  
 新版本已为纯文本 `SendMessage` 增加兼容处理。
 
+### team 缺失或删除后，重试 teammate 时出现 hello2cc 红字拦截
+
+请升级到 `0.4.7` 后重新加载插件。  
+这个版本已经移除显式 teammate 重试时的插件侧前置 deny，missing-team 会改回走 Claude Code 原生的 team 报错路径。
+
 ### current-info 或对比题经常搜不到结果
 
-请升级到 `0.4.6` 后重新加载插件。  
-这个版本进一步收紧了短 query 规则，并把 `Did 0 searches` 明确视为一次空搜索而不是成功结果。
+请升级到 `0.4.6` 或更高版本后重新加载插件。  
+近几个版本已经进一步收紧短 query 规则，并把 `Did 0 searches` 明确视为一次空搜索而不是成功结果。
 
 ---
 

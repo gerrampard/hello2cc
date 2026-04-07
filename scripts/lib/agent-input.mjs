@@ -2,7 +2,6 @@ import {
   activeWorktreeFailure,
   hasIntentTeamSemantics,
   isImplicitAssistantTeamName,
-  knownMissingTeamFailure,
   provenActiveTeamContext,
   readTrimmed,
   stripAgentTeamFields,
@@ -18,10 +17,6 @@ export function normalizeAgentTeamSemantics(input = {}, sessionContext = {}) {
   const hasTeamSemantics = Boolean(workerName || explicitTeamName);
   const activeTeamIsImplicit = isImplicitAssistantTeamName(activeTeamName);
   const explicitTeamIsImplicit = isImplicitAssistantTeamName(explicitTeamName);
-  const candidateTeamName = explicitTeamName || activeTeamName;
-  const missingTeamFailure = candidateTeamName && !isImplicitAssistantTeamName(candidateTeamName)
-    ? knownMissingTeamFailure(sessionContext, candidateTeamName)
-    : null;
 
   if (!hasTeamSemantics) {
     return { input, changed: false, reason: '', blocked: false };
@@ -33,15 +28,6 @@ export function normalizeAgentTeamSemantics(input = {}, sessionContext = {}) {
       changed: true,
       reason: 'hello2cc normalized Agent to plain subagent semantics outside explicit team-oriented workflows',
       blocked: false,
-    };
-  }
-
-  if (missingTeamFailure) {
-    return {
-      input,
-      changed: false,
-      blocked: true,
-      reason: `hello2cc blocked Agent retry because team "${candidateTeamName}" is known missing in this session; create the team again with TeamCreate or fall back to a plain non-team subagent path before retrying`,
     };
   }
 

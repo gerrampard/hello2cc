@@ -9,7 +9,7 @@ import {
   writeTranscript,
 } from './helpers/orchestrator-test-helpers.mjs';
 
-test('post-tool-failure records missing teams and pre-agent-model fail-closes repeated teammate retries', () => {
+test('post-tool-failure records missing teams but pre-agent-model leaves explicit teammate retries to the native tool', () => {
   const env = isolatedEnv();
 
   run('route', {
@@ -30,7 +30,7 @@ test('post-tool-failure records missing teams and pre-agent-model fail-closes re
   }, env);
   assert.deepEqual(failure, { suppressOutput: true });
 
-  const blocked = run('pre-agent-model', {
+  const allowed = run('pre-agent-model', {
     session_id: 'missing-team-precondition',
     cwd: 'D:\\GitHub\\dev\\hello2cc',
     tool_name: 'Agent',
@@ -41,9 +41,7 @@ test('post-tool-failure records missing teams and pre-agent-model fail-closes re
     },
   }, env);
 
-  assert.equal(blocked.hookSpecificOutput.permissionDecision, 'deny');
-  assert.match(blocked.hookSpecificOutput.permissionDecisionReason, /known missing in this session/i);
-  assert.match(blocked.hookSpecificOutput.permissionDecisionReason, /TeamCreate|plain non-team subagent/i);
+  assert.deepEqual(allowed, { suppressOutput: true });
 });
 
 test('post-tool-use clears known-missing team failures after TeamCreate succeeds', () => {
@@ -299,7 +297,7 @@ test('pre-team-delete no longer pre-denies cleanup after teammate shutdown rejec
   assert.deepEqual(blocked, { suppressOutput: true });
 });
 
-test('post-tool-use records deleted teams as unavailable until recreated', () => {
+test('post-tool-use records deleted teams as unavailable until recreated without pre-denying explicit teammate retries', () => {
   const env = isolatedEnv();
 
   run('route', {
@@ -318,7 +316,7 @@ test('post-tool-use records deleted teams as unavailable until recreated', () =>
     },
   }, env);
 
-  const blocked = run('pre-agent-model', {
+  const allowed = run('pre-agent-model', {
     session_id: 'deleted-team-precondition',
     tool_name: 'Agent',
     tool_input: {
@@ -328,8 +326,7 @@ test('post-tool-use records deleted teams as unavailable until recreated', () =>
     },
   }, env);
 
-  assert.equal(blocked.hookSpecificOutput.permissionDecision, 'deny');
-  assert.match(blocked.hookSpecificOutput.permissionDecisionReason, /known missing in this session/i);
+  assert.deepEqual(allowed, { suppressOutput: true });
 });
 
 test('config-change clears cached session context so stale models are not reused', () => {
