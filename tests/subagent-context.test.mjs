@@ -86,6 +86,8 @@ test('subagent-context exposes teammate identity and includes team workflow guid
   assert.match(context, /TaskUpdate/);
   assert.match(context, /SendMessage/);
   assert.match(context, /TeammateIdle/);
+  assert.match(context, /TaskUpdate\(status:"completed"\)/);
+  assert.match(context, /TeammateIdle.*never replaces `TaskUpdate`|never closes the task/i);
 });
 
 test('subagent-context keeps Explore on explicit read-only capability', () => {
@@ -119,6 +121,8 @@ test('subagent-context derives compare task intent into a decision contract', ()
   assert.equal(state.response_contract.specialization, 'compare');
   assert.equal(state.response_contract.selection_basis, 'weak_parent_task_shape');
   assert.equal(state.response_contract.selection_strength, 'weak');
+  assert.equal(state.response_contract.selection_mode, 'semantic_choice_within_candidates');
+  assert.equal(state.response_contract.specialization_is_hint, true);
   assert.equal(state.response_contract.preferred_shape, 'one_sentence_judgment_then_markdown_table_then_recommendation');
   assert.deepEqual(state.execution_playbook.ordered_steps, [
     'state_judgment_first',
@@ -133,6 +137,8 @@ test('subagent-context derives compare task intent into a decision contract', ()
     'judgment_and_table_before_long_prose',
   ]);
   assert.equal(state.specialization_candidates.active, 'compare');
+  assert.ok(state.specialization_candidates.items.some((item) => item.id === 'planning' && item.recommended_shape === 'ordered_plan_with_validation_and_risks'));
+  assert.ok(state.specialization_candidates.items.some((item) => item.id === 'research' && item.recommended_shape === 'direct_findings_with_paths_and_unknowns'));
   assert.ok(state.specialization_candidates.items.some((item) => item.id === 'compare' && item.selected));
   assert.ok(state.specialization_candidates.items.some((item) => item.id === 'compare' && item.selection_strength === 'weak'));
 });
@@ -246,6 +252,14 @@ test('subagent-context exposes current assigned tasks for a teammate from shared
   });
   assert.equal(state.response_contract.preferred_shape, 'one_line_plus_compact_markdown_table');
   assert.equal(state.execution_playbook.role, 'teammate_executor');
+  assert.deepEqual(state.execution_playbook.ordered_steps, [
+    'read_current_task_state',
+    'resolve_blocker_or_prepare_handoff',
+    'record_handoff_via_TaskUpdate',
+    'only_then_report_next_owner',
+  ]);
+  assert.ok(state.recovery_playbook.recipes.some((recipe) => recipe.guard === 'task_board_closure_required'));
+  assert.ok(state.recovery_playbook.recipes.some((recipe) => recipe.guard === 'completion_requires_TaskUpdate'));
   assert.ok(state.recovery_playbook.recipes.some((recipe) => recipe.guard === 'pending_assignment_mailbox'));
   assert.ok(state.recovery_playbook.recipes.some((recipe) => recipe.guard === 'blocked_task_continuity'));
   assert.equal(state.specialization_candidates.active, 'handoff');
@@ -258,7 +272,7 @@ test('subagent-context exposes current assigned tasks for a teammate from shared
   assert.match(context, /#7 <- #3/);
   assert.match(context, /task assignment/i);
   assert.match(context, /recovery_playbook|pending_assignment_mailbox|blocked_task_continuity/);
-  assert.ok(context.length < 6500, `expected compact teammate context, got ${context.length} chars`);
+  assert.ok(context.length < 7600, `expected compact teammate context, got ${context.length} chars`);
   assert.ok(context.split(/\r?\n/).length < 35, 'expected teammate context to stay compact');
 });
 
@@ -299,9 +313,11 @@ test('subagent-context uses handoff specialization when teammate work is blocked
   assert.deepEqual(state.execution_playbook.ordered_steps, [
     'read_current_task_state',
     'resolve_blocker_or_prepare_handoff',
-    'update_task_board_or_SendMessage',
-    'state_next_owner_or_follow_up',
+    'record_handoff_via_TaskUpdate',
+    'only_then_report_next_owner',
   ]);
+  assert.ok(state.recovery_playbook.recipes.some((recipe) => recipe.guard === 'task_board_closure_required'));
+  assert.ok(state.recovery_playbook.recipes.some((recipe) => recipe.guard === 'completion_requires_TaskUpdate'));
   assert.ok(state.recovery_playbook.recipes.some((recipe) => recipe.guard === 'blocked_task_continuity'));
   assert.ok(state.recovery_playbook.recipes.some((recipe) => recipe.guard === 'handoff_or_blocker_continuity'));
   assert.ok(state.decision_tie_breakers.items.some((item) => item.id === 'blocked_task_or_handoff_before_done_claim'));

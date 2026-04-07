@@ -39,6 +39,13 @@ function uniqueStrings(values, maxItems = 8) {
   )].slice(0, maxItems);
 }
 
+function subagentSelectionMode(selection = {}) {
+  const strength = readTrimmed(selection?.selection_strength).toLowerCase();
+  if (strength === 'strong') return 'host_locked_continuity';
+  if (strength === 'medium') return 'host_guided_visible_surface';
+  return 'semantic_choice_within_candidates';
+}
+
 export function buildSubagentResponseContract(mode, identity, taskProfile = {}, teamActionState = {}, details = {}) {
   const selection = describeSubagentSpecialization(mode, taskProfile, {
     hasTeamIdentity: Boolean(identity),
@@ -56,6 +63,8 @@ export function buildSubagentResponseContract(mode, identity, taskProfile = {}, 
     specialization: specialization || undefined,
     selection_basis: selection.selection_basis,
     selection_strength: selection.selection_strength,
+    selection_mode: subagentSelectionMode(selection),
+    specialization_is_hint: selection.selection_strength === 'weak' || undefined,
     opening_style: 'direct_no_internal_deliberation',
     visible_text_language: 'follow_parent_and_user_language',
     preferred_shape: preferredShape,
@@ -93,21 +102,44 @@ export function buildSubagentExecutionPlaybook(mode, identity, taskProfile = {},
     role: identity ? 'teammate_executor' : 'general_executor',
     specialization: specialization || undefined,
     ordered_steps: pendingAssignments.length > 0
-      ? ['pick_up_assignment_via_TaskGet', 'mark_in_progress_via_TaskUpdate', 'complete_assigned_slice', 'validate_then_report']
+      ? ['pick_up_assignment_via_TaskGet', 'mark_in_progress_via_TaskUpdate', 'finish_slice_and_validate', 'close_task_or_record_blocker', 'only_then_report_or_idle']
       : assignedTasks.length > 0
-        ? ['read_current_task_state', 'continue_assigned_slice', 'validate_changes', 'update_task_or_send_handoff']
+        ? ['refresh_task_state', 'continue_slice_and_validate', 'close_task_or_record_blocker', 'only_then_report_or_idle']
         : ['inspect_assigned_scope', 'edit_surgically', 'run_narrow_validation', 'report_files_and_risks'],
     primary_tools: blockedTaskRecords.length > 0
       ? ['TaskGet', 'TaskUpdate', 'SendMessage']
       : identity ? ['TaskList', 'TaskGet', 'TaskUpdate', 'SendMessage'] : undefined,
-    avoid_shortcuts: ['claim_done_without_validation', 'plain_text_team_coordination'],
+    avoid_shortcuts: ['claim_done_without_validation', 'plain_text_team_coordination', 'idle_or_plain_text_summary_before_task_closure'],
   };
 }
 
 export function buildSubagentRecoveryPlaybook(mode, taskProfile = {}, details = {}) {
-  const { canWrite = false, pendingAssignments = [], blockedTaskRecords = [] } = details;
+  const {
+    canWrite = false,
+    assignedTasks = [],
+    pendingAssignments = [],
+    blockedTaskRecords = [],
+    hasTeamIdentity = false,
+  } = details;
   const specialization = subagentSpecialization(mode, taskProfile, details);
   const recipes = specializedSubagentRecoveryRecipes(specialization);
+  const hasTaskBoardContinuity = hasTeamIdentity
+    && (assignedTasks.length > 0
+      || pendingAssignments.length > 0
+      || blockedTaskRecords.length > 0);
+
+  if (hasTaskBoardContinuity) {
+    recipes.push({
+      guard: 'task_board_closure_required',
+      recover_by: 'refresh TaskGet/TaskList and keep TaskUpdate status truthful before any done claim',
+      avoid: ['plain_text_done_claim', 'TeammateIdle_as_closure'],
+    });
+    recipes.push({
+      guard: 'completion_requires_TaskUpdate',
+      recover_by: 'use TaskUpdate(status:"completed") for real completion; otherwise keep in_progress or record blocker first',
+      avoid: ['idle_before_task_update', 'summary_text_as_done'],
+    });
+  }
 
   if (pendingAssignments.length > 0) {
     recipes.push({

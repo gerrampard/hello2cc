@@ -143,8 +143,15 @@ test('route skips explicit slash commands', () => {
 
 test('route adds native team guidance for explicit team workflow requests', () => {
   const env = isolatedEnv();
+  run('session-start', {
+    session_id: 'route-team-guidance',
+    model: 'opus',
+    tools: ['Agent', 'TeamCreate', 'TaskCreate', 'TaskList', 'TaskGet', 'TaskUpdate', 'SendMessage'],
+  }, env);
+
   const output = run('route', {
     session_id: 'route-team-guidance',
+    tools: ['Agent', 'TeamCreate', 'TaskCreate', 'TaskList', 'TaskGet', 'TaskUpdate', 'SendMessage'],
     prompt: 'Use TeamCreate and teammates with a shared task board to coordinate research and implementation.',
   }, env);
   const context = output.hookSpecificOutput.additionalContext;
@@ -153,9 +160,42 @@ test('route adds native team guidance for explicit team workflow requests', () =
   assert.match(context, /TeamCreate/);
   assert.match(context, /TaskList/);
   assert.match(context, /team 语义|持续协作型 team/i);
+  assert.ok(state.host.tools.includes('Agent'));
+  assert.ok(state.host.tools.includes('TeamCreate'));
+  assert.ok(state.host.tools.includes('TaskCreate'));
+  assert.ok(state.host.tools.includes('SendMessage'));
   assert.equal(state.intent.collaboration.team_workflow, true);
   assert.equal(state.intent.collaboration.task_board, true);
   assert.equal(state.policy.engine, 'host_defined_capability_policies');
+});
+
+test('route does not force bootstrapping team workflow when host has no full team surface', () => {
+  const env = isolatedEnv();
+  run('session-start', {
+    session_id: 'route-team-guidance-gap',
+    model: 'opus',
+    tools: ['Agent', 'SendMessage'],
+  }, env);
+
+  const output = run('route', {
+    session_id: 'route-team-guidance-gap',
+    tools: ['Agent', 'SendMessage'],
+    prompt: 'Use TeamCreate and teammates with a shared task board to coordinate research and implementation.',
+  }, env);
+  const context = output.hookSpecificOutput.additionalContext;
+  const state = parseAdditionalContextJson(context);
+
+  assert.ok(state.host.tools.includes('Agent'));
+  assert.ok(state.host.tools.includes('SendMessage'));
+  assert.ok(!state.host.tools.includes('TeamCreate'));
+  assert.ok(!state.host.tools.includes('TaskCreate'));
+  assert.match(context, /没有显式 surfaced 完整的 `TeamCreate` \+ task board \+ `SendMessage` 工具面|不要口头宣称 team 已创建/);
+  assert.doesNotMatch(context, /优先 `TeamCreate` → `TaskList` \/ `TaskCreate` 建真实 task board → teammate/);
+  assert.equal(state.intent.collaboration.team_workflow, true);
+  assert.equal(state.policy.engine, 'host_defined_capability_policies');
+  assert.ok(state.policy.policies.some((item) => item.id === 'team-workflow'));
+  assert.equal(state.policy.policies.find((item) => item.id === 'team-workflow')?.bootstrappable, undefined);
+  assert.deepEqual(state.policy.policies.find((item) => item.id === 'team-workflow')?.task_board_tools, ['SendMessage']);
 });
 
 test('route prefers markdown tables for comparison prompts', () => {
@@ -175,6 +215,8 @@ test('route prefers markdown tables for comparison prompts', () => {
   assert.equal(state.response_contract.specialization, 'compare');
   assert.equal(state.response_contract.selection_basis, 'weak_request_shape');
   assert.equal(state.response_contract.selection_strength, 'weak');
+  assert.equal(state.response_contract.selection_mode, 'semantic_choice_within_candidates');
+  assert.equal(state.response_contract.specialization_is_hint, true);
   assert.equal(state.response_contract.preferred_shape, 'one_sentence_judgment_then_markdown_table_then_recommendation');
   assert.deepEqual(state.response_contract.required_sections, ['judgment', 'compact_table', 'recommendation']);
   assert.equal(state.renderer_contract.style_name, 'hello2cc:hello2cc Native');
@@ -196,6 +238,8 @@ test('route prefers markdown tables for comparison prompts', () => {
   assert.equal(state.intent.output.diagram, undefined);
   assert.equal(state.intent.actions.plan, undefined);
   assert.equal(state.policy.requested_output_shape, 'one_sentence_judgment_then_markdown_table_then_recommendation');
+  assert.ok(state.specialization_candidates.items.some((item) => item.id === 'planning' && item.recommended_shape === 'ordered_plan_with_validation_and_open_questions'));
+  assert.ok(state.specialization_candidates.items.some((item) => item.id === 'research' && item.recommended_shape === 'direct_findings_with_paths_and_unknowns'));
   assert.ok(state.specialization_candidates.items.some((item) => item.id === 'compare' && item.selection_strength === 'weak'));
 });
 
@@ -229,12 +273,15 @@ test('route derives non-lexicon bounded implementation from artifact shape', () 
     tools: ['TaskCreate', 'TaskUpdate'],
     prompt: '请修改 scripts/lib/route-guidance.mjs:247 的 current-info 边界，并同步 tests/orchestrator-route-execution.test.mjs。',
   }, env);
+  const context = output.hookSpecificOutput.additionalContext;
   const state = parseAdditionalContextJson(output.hookSpecificOutput.additionalContext);
 
   assert.equal(state.intent.analysis.lexicon_guided, undefined);
   assert.equal(state.intent.analysis.artifact_shape_guided, true);
   assert.equal(state.intent.actions.implement, true);
   assert.equal(state.response_contract.preferred_shape, 'brief_status_then_changes_validation_and_risks');
+  assert.match(context, /边界清晰的实施切片|优先直接执行/i);
+  assert.match(context, /不要仅因为多文件|Plan` agent 就进入 `EnterPlanMode`/);
 });
 
 test('route keeps protocol explanation prompts out of capability and team-status routing', () => {
@@ -396,6 +443,12 @@ test('route keeps active-team guide explanations out of team-status while preser
   assert.equal(teamState.response_contract.specialization, 'team_status');
   assert.equal(teamState.response_contract.selection_basis, 'team_continuity');
   assert.equal(teamState.response_contract.selection_strength, 'strong');
+  assert.deepEqual(teamState.execution_playbook.ordered_steps, [
+    'inspect_host_team_continuity',
+    'refresh_open_tasks_before_status',
+    'state_next_action_first',
+    'close_finished_tasks_or_summarize',
+  ]);
 });
 
 test('route keeps active-team continuity from hijacking non-team-owned specialization roles and playbooks', () => {
@@ -617,9 +670,10 @@ test('route derives non-lexicon structured planning questions into planning guid
       '这个改造应该怎么拆分？',
       '1. 先做哪些',
       '2. 风险是什么',
-      '3. 每一步怎么验证',
-    ].join('\n'),
+    '3. 每一步怎么验证',
+  ].join('\n'),
   }, env);
+  const context = output.hookSpecificOutput.additionalContext;
   const state = parseAdditionalContextJson(output.hookSpecificOutput.additionalContext);
 
   assert.equal(state.intent.analysis.lexicon_guided, undefined);
@@ -631,4 +685,5 @@ test('route derives non-lexicon structured planning questions into planning guid
   assert.equal(state.response_contract.preferred_shape, 'ordered_plan_with_validation_and_open_questions');
   assert.ok(state.recovery_playbook.recipes.some((recipe) => recipe.guard === 'plan_mode_protocol'));
   assert.ok(state.decision_tie_breakers.items.some((item) => item.id === 'constraints_before_plan_shape'));
+  assert.match(context, /planning` specialization 只要求这轮先给计划与顺序|不等于必须进入 session 级 plan mode/);
 });

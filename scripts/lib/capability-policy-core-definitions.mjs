@@ -22,6 +22,7 @@ export const CORE_POLICY_DEFINITIONS = [
       const lines = [
         '- 宿主先定义能力边界与优先级；模型只在这个受约束空间里做语义匹配和最终工具选择。',
         '- 默认顺序：已加载连续体 → surfaced capability → discovery → 更宽的 agent / team 路径；不要一上来就退回最宽的工具或自创工作流。',
+        '- `Plan` / `Explore` 只是只读 helper，不等于 session 级 `EnterPlanMode`；不要因为有这些 agent 就默认先进入 plan mode。',
       ];
       const modelLine = sessionModelLine(sessionContext);
       if (modelLine) lines.push(`- ${modelLine}`);
@@ -49,8 +50,8 @@ export const CORE_POLICY_DEFINITIONS = [
 
       if (requestNeedsPlanning(requestProfile)) {
         lines.push(requestProfile?.planningProbeShape
-          ? '先把这次规划收成目标、阶段顺序、验证方式和未决问题/风险，再决定是否需要阻塞提问。'
-          : '如果实现路径 genuinely unclear、架构取舍明显或需要先探索再定方案，先走原生规划；路径清晰时直接推进。');
+          ? '先把这次规划收成目标、阶段顺序、验证方式和未决问题/风险；`planning` 路由只要求给出计划，不等于必须进入 session 级 `EnterPlanMode`。'
+          : '如果实现路径 genuinely unclear、架构取舍明显或需要先探索再定方案，先走原生规划；不要因为多文件、可用 `Plan` agent 或需要先读代码就自动进 plan mode。');
       }
 
       if (requestNeedsCapabilityDiscovery(requestProfile)) {
@@ -62,7 +63,7 @@ export const CORE_POLICY_DEFINITIONS = [
       }
 
       if (requestProfile?.boundedImplementation) {
-        lines.push('把当前任务按边界清晰的实现 / 修复 / 验证切片处理：优先直接推进或交给 `General-Purpose`，不要先把探索、规划、team 协作混成一团。');
+        lines.push('把当前任务按边界清晰的实现 / 修复 / 验证切片处理：优先直接推进或交给 `General-Purpose`；必要时可派只读 `Explore` / `Plan` 补信息，但不要先把它升级成 session 级 plan mode。');
       }
 
       if (requestProfile?.compare) {

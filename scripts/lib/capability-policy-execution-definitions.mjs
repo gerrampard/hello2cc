@@ -1,31 +1,57 @@
 import { availableDeferredToolNames } from './session-context-accessors.mjs';
 import {
   activeTeamName,
+  hasBootstrappableTeamWorkflowSurface,
+  hasVisibleTeamWorkflowSurface,
   requestNeedsParallelWorkers,
   requestNeedsPlanning,
   requestNeedsTeamWorkflow,
   uniqueStrings,
+  visibleTaskBoardTools,
 } from './capability-policy-helpers.mjs';
 
 export const EXECUTION_POLICY_DEFINITIONS = [
   {
     id: 'team-workflow',
     title: 'TeamCreate / task board / teammate routing',
-    available() {
-      return true;
+    available(sessionContext) {
+      return hasVisibleTeamWorkflowSurface(sessionContext);
     },
-    sessionLines() {
-      return [
+    sessionLines(sessionContext) {
+      const taskBoardTools = visibleTaskBoardTools(sessionContext);
+      const lines = [
         '- team 语义只在“持久 task board / owner / handoff / shared teammate context”成立时启用；普通并行 worker 不等于 team。',
-        '- 进入 team 模式后，先 `TeamCreate`，再 `TaskList` / `TaskCreate` 建真实 task board，再启动 teammate；后续 `Agent` 显式传 `name` + `team_name`。',
-        '- team 内沟通靠 `SendMessage`，任务流转靠 `TaskList` / `TaskGet` / `TaskUpdate` / `TaskCreate`；不要在正文里角色扮演团队。',
       ];
-    },
-    routeLines(requestProfile) {
-      const lines = [];
 
-      if (requestNeedsTeamWorkflow(requestProfile)) {
+      if (activeTeamName(sessionContext)) {
+        lines.push('- 当前已处于真实 active team continuity；继续沿 `SendMessage` 与 task board 工具收口，不要把团队状态退化回正文口头广播。');
+      } else if (hasBootstrappableTeamWorkflowSurface(sessionContext)) {
+        lines.push('- 进入 team 模式后，先 `TeamCreate`，再 `TaskList` / `TaskCreate` 建真实 task board，再启动 teammate；后续 `Agent` 显式传 `name` + `team_name`。');
+      } else {
+        lines.push('- 当前未看到完整的 team bootstrapping 工具面；不要把普通 `Agent` worker、background agents，或暂时出现的 teammate UI 误读成真实 team 已创建。');
+      }
+
+      if (sessionContext?.sendMessageAvailable || taskBoardTools.length) {
+        const continuityTools = uniqueStrings([
+          sessionContext?.sendMessageAvailable ? 'SendMessage' : '',
+          ...taskBoardTools,
+        ]);
+        lines.push(`- 当前可见的 team continuity 工具面：${continuityTools.map((tool) => `\`${tool}\``).join(', ')}；只在这些已 surfaced 的能力内继续。`);
+      }
+
+      return lines;
+    },
+    routeLines(requestProfile, sessionContext) {
+      const lines = [];
+      const activeTeam = activeTeamName(sessionContext);
+      const taskBoardTools = visibleTaskBoardTools(sessionContext);
+
+      if (requestNeedsTeamWorkflow(requestProfile) && activeTeam) {
+        lines.push(`当前已有 active team continuity（\`${activeTeam}\`）；优先沿 \`SendMessage\`${taskBoardTools.length ? ` + ${taskBoardTools.map((tool) => `\`${tool}\``).join(' / ')}` : ''} 继续，不要重建 team 或口头宣布 team 已创建。`);
+      } else if (requestNeedsTeamWorkflow(requestProfile) && hasBootstrappableTeamWorkflowSurface(sessionContext)) {
         lines.push('把当前任务按持续协作型 team 语义处理：优先 `TeamCreate` → `TaskList` / `TaskCreate` 建真实 task board → teammate，而不是只靠一次性 plain workers 或正文口头分工。');
+      } else if (requestNeedsTeamWorkflow(requestProfile)) {
+        lines.push('用户想要真实 team 协作，但当前宿主没有显式 surfaced 完整的 `TeamCreate` + task board + `SendMessage` 工具面；不要口头宣称 team 已创建。若只有 `Agent`，退回 plain workers；若必须 real team，先明确这是宿主能力缺口。');
       } else if (requestNeedsParallelWorkers(requestProfile)) {
         lines.push('把当前任务按一次性并行 worker 处理而不是持久 team；普通 worker 默认不要带 `name` / `team_name`。');
       }
@@ -33,15 +59,15 @@ export const EXECUTION_POLICY_DEFINITIONS = [
       return lines;
     },
     snapshot(sessionContext, requestProfile) {
+      const taskBoardTools = visibleTaskBoardTools(sessionContext);
+
       return {
         id: 'team-workflow',
         active_team: activeTeamName(sessionContext) || undefined,
         requested: requestNeedsTeamWorkflow(requestProfile) || undefined,
+        bootstrappable: hasBootstrappableTeamWorkflowSurface(sessionContext) || undefined,
         task_board_tools: uniqueStrings([
-          sessionContext?.taskListAvailable ? 'TaskList' : '',
-          sessionContext?.taskGetAvailable ? 'TaskGet' : '',
-          sessionContext?.taskCreateAvailable ? 'TaskCreate' : '',
-          sessionContext?.taskUpdateAvailable ? 'TaskUpdate' : '',
+          ...taskBoardTools,
           sessionContext?.sendMessageAvailable ? 'SendMessage' : '',
         ]),
       };

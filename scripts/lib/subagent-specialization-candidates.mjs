@@ -5,22 +5,83 @@ import {
   upsertCandidate,
 } from './specialization-candidate-shared.mjs';
 
+const SEMANTIC_SUBAGENT_FAMILY_IDS = [
+  'compare',
+  'planning',
+  'capability',
+  'research',
+  'explanation',
+  'review',
+  'verification',
+  'release',
+];
+
+function recommendedShapeForCandidate(id = '') {
+  const candidateId = String(id || '').trim().toLowerCase();
+
+  if (candidateId === 'compare') return 'one_sentence_judgment_then_markdown_table_then_recommendation';
+  if (candidateId === 'planning') return 'ordered_plan_with_validation_and_risks';
+  if (candidateId === 'capability') return 'direct_answer_then_visible_capabilities_then_gap_or_next_step';
+  if (candidateId === 'handoff') return 'handoff_status_then_compact_table_then_reassignment_or_follow_up';
+  if (candidateId === 'team_status') return 'one_line_plus_compact_markdown_table';
+  if (candidateId === 'review_verification') return 'findings_first_then_verification_evidence_then_risk_call';
+  if (candidateId === 'review') return 'findings_first_then_open_questions_then_change_summary';
+  if (candidateId === 'verification') return 'verification_status_then_evidence_then_gaps';
+  if (candidateId === 'research') return 'direct_findings_with_paths_and_unknowns';
+  if (candidateId === 'explanation') return 'direct_explanation_then_key_points_and_references';
+  if (candidateId === 'release') return 'release_status_then_checklist_then_notes';
+  return '';
+}
+
+function genericSemanticCandidate(id = '') {
+  const shape = recommendedShapeForCandidate(id);
+  return shape ? { recommended_shape: shape } : {};
+}
+
+function seedSemanticSubagentFamilies(entries) {
+  for (const id of SEMANTIC_SUBAGENT_FAMILY_IDS) {
+    upsertCandidate(entries, id, genericSemanticCandidate(id));
+  }
+}
+
+function hasSemanticTaskFrame(taskProfile = {}) {
+  return Boolean(
+    taskProfile?.compare
+    || taskProfile?.plan
+    || taskProfile?.capabilityQuery
+    || taskProfile?.capabilityProbeShape
+    || taskProfile?.release
+    || taskProfile?.review
+    || taskProfile?.verify
+    || taskProfile?.codeResearch
+    || taskProfile?.research
+    || taskProfile?.explain
+    || taskProfile?.claudeGuide
+    || taskProfile?.handoff
+    || taskProfile?.teamStatus
+    || taskProfile?.workflowContinuation
+    || taskProfile?.questionIntent
+    || taskProfile?.promptEnvelope?.structuralComplexity
+  );
+}
+
 export function buildSubagentSpecializationCandidates(mode, taskProfile = {}, details = {}) {
   const selection = describeSubagentSpecialization(mode, taskProfile, details);
   const selected = selection.specialization;
   const entries = new Map();
+  if (hasSemanticTaskFrame(taskProfile)) {
+    seedSemanticSubagentFamilies(entries);
+  }
 
   if (taskProfile?.compare) {
     upsertCandidate(entries, 'compare', {
       reasons: ['parent task is a comparison or choice'],
-      use_when: 'a direct judgment plus compact table is the right response shape',
     });
   }
 
   if (taskProfile?.plan || mode === 'plan') {
     upsertCandidate(entries, 'planning', {
       reasons: [mode === 'plan' ? 'subagent mode is Plan' : 'parent task requests planning'],
-      use_when: 'the subagent should gather constraints and produce an executable plan',
     });
   }
 
@@ -30,14 +91,12 @@ export function buildSubagentSpecializationCandidates(mode, taskProfile = {}, de
         taskProfile?.capabilityProbeShape ? 'parent task asks what host surfaces are available' : '',
         taskProfile?.capabilityQuery && !taskProfile?.capabilityProbeShape ? 'parent task asks about host capabilities' : '',
       ],
-      use_when: 'the subagent should answer from visible host surfaces and only then name discovery gaps',
     });
   }
 
   if (taskProfile?.release) {
     upsertCandidate(entries, 'release', {
       reasons: ['parent task is a release flow'],
-      use_when: 'the subagent should report release status and checklist first',
     });
   }
 
@@ -47,14 +106,14 @@ export function buildSubagentSpecializationCandidates(mode, taskProfile = {}, de
         hasItems(details?.blockedTaskRecords) ? 'assigned work is blocked' : '',
         taskProfile?.handoff ? 'parent task mentions handoff' : '',
       ],
-      use_when: 'the subagent should continue blocker or handoff continuity before claiming completion',
+      recommended_shape: recommendedShapeForCandidate('handoff'),
     });
   }
 
   if (details?.hasTeamIdentity || hasItems(details?.teamActionState?.teamActionItems)) {
     upsertCandidate(entries, 'team_status', {
       reasons: ['subagent is operating inside team continuity'],
-      use_when: 'the subagent should summarize task-board state and next action rather than free-form chat',
+      recommended_shape: recommendedShapeForCandidate('team_status'),
     });
   }
 

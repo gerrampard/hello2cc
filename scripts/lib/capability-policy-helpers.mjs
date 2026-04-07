@@ -21,6 +21,32 @@ export function activeTeamName(sessionContext = {}) {
   return teamName;
 }
 
+export function visibleTaskBoardTools(sessionContext = {}) {
+  return uniqueStrings([
+    sessionContext?.taskCreateAvailable ? 'TaskCreate' : '',
+    sessionContext?.taskListAvailable ? 'TaskList' : '',
+    sessionContext?.taskGetAvailable ? 'TaskGet' : '',
+    sessionContext?.taskUpdateAvailable ? 'TaskUpdate' : '',
+  ]);
+}
+
+export function hasVisibleTeamWorkflowSurface(sessionContext = {}) {
+  return Boolean(
+    activeTeamName(sessionContext) ||
+    sessionContext?.teamCreateAvailable ||
+    sessionContext?.sendMessageAvailable ||
+    visibleTaskBoardTools(sessionContext).length,
+  );
+}
+
+export function hasBootstrappableTeamWorkflowSurface(sessionContext = {}) {
+  return Boolean(
+    sessionContext?.teamCreateAvailable &&
+    sessionContext?.sendMessageAvailable &&
+    visibleTaskBoardTools(sessionContext).length,
+  );
+}
+
 export function requestOutputShape(requestProfile = {}) {
   if (requestProfile?.compare) {
     return 'one_sentence_judgment_then_markdown_table_then_recommendation';

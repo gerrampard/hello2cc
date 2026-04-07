@@ -41,3 +41,23 @@ export function buildSessionStartHostState(sessionContext = {}) {
 export function buildPromptHostState(sessionContext = {}) {
   return promptHostStateSnapshot(sessionContext);
 }
+
+export function hasDynamicPromptHostState(sessionContext = {}) {
+  const snapshot = promptHostStateSnapshot(sessionContext);
+
+  return Boolean(compactState({
+    host: compactState({
+      delta_surfaces: snapshot?.host?.delta_surfaces,
+      attachments: snapshot?.host?.attachments,
+      surfaced_skills: snapshot?.host?.surfaced_skills,
+      loaded_commands: snapshot?.host?.loaded_commands,
+      workflows: snapshot?.host?.workflows,
+      deferred_tools: snapshot?.host?.deferred_tools,
+      mcp_resources: snapshot?.host?.mcp_resources,
+      active_team: snapshot?.host?.active_team,
+      continuity: snapshot?.host?.continuity,
+    }),
+    websearch: snapshot?.websearch,
+    guards: snapshot?.guards,
+  }));
+}

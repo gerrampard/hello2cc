@@ -115,8 +115,8 @@ export function specializedSubagentPlaybook(identity, specialization = '') {
     return {
       role: identity ? 'teammate_executor' : 'general_executor',
       specialization,
-      ordered_steps: ['read_host_task_state', 'state_current_status_with_next_action', 'use_compact_table_when_multiple_items_exist'],
-      avoid_shortcuts: ['free_form_status_retelling'],
+      ordered_steps: ['read_task_board_state', 'state_current_status_with_next_action', 'close_finished_task_before_idle'],
+      avoid_shortcuts: ['free_form_status_retelling', 'plain_text_done_without_task_update'],
     };
   }
 
@@ -124,8 +124,8 @@ export function specializedSubagentPlaybook(identity, specialization = '') {
     return {
       role: identity ? 'teammate_executor' : 'general_executor',
       specialization,
-      ordered_steps: ['read_current_task_state', 'resolve_blocker_or_prepare_handoff', 'update_task_board_or_SendMessage', 'state_next_owner_or_follow_up'],
-      avoid_shortcuts: ['claiming_done_while_blocked'],
+      ordered_steps: ['read_current_task_state', 'resolve_blocker_or_prepare_handoff', 'record_handoff_via_TaskUpdate', 'only_then_report_next_owner'],
+      avoid_shortcuts: ['claiming_done_while_blocked', 'plain_text_handoff_without_task_update'],
     };
   }
 
@@ -168,15 +168,15 @@ export function specializedSubagentRecoveryRecipes(specialization = '') {
   if (specialization === 'team_status') {
     return [{
       guard: 'task_board_status_first',
-      recover_by: 'summarize task-board state and next action before prose commentary',
-      avoid: ['free-form status retelling'],
+      recover_by: 'summarize task-board state first and close finished work with TaskUpdate before idle text',
+      avoid: ['free-form status retelling', 'plain-text done with no task update'],
     }];
   }
 
   if (specialization === 'handoff') {
     return [{
       guard: 'handoff_or_blocker_continuity',
-      recover_by: 'resolve the blocker or update the handoff path before claiming completion',
+      recover_by: 'resolve the blocker or record the handoff via TaskUpdate before claiming completion',
       avoid: ['plain-text handoff with no task update'],
     }];
   }

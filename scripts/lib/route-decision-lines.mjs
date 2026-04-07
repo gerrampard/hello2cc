@@ -10,6 +10,10 @@ import { workflowContinuitySnapshot } from './tool-policy-state.mjs';
 
 export function buildRouteDecisionLines(signals = {}, sessionContext = {}, guidance = {}) {
   const continuity = guidance.continuity || workflowContinuitySnapshot(sessionContext);
+  const agentTypes = Array.isArray(sessionContext?.agentTypes)
+    ? sessionContext.agentTypes.map((agent) => String(agent || '').trim().toLowerCase()).filter(Boolean)
+    : [];
+  const hasReadOnlyPlanningHelpers = agentTypes.includes('plan') || agentTypes.includes('explore');
   const teamContinuity = continuity.team || {};
   const mailboxEvents = Array.isArray(teamContinuity.mailbox_events)
     ? teamContinuity.mailbox_events
@@ -57,6 +61,14 @@ export function buildRouteDecisionLines(signals = {}, sessionContext = {}, guida
     '可见文本默认跟随用户当前语言；不要输出“我打算 / 我应该 / let’s”这类内部思考式元叙述。',
     '先遵守宿主能力优先级，再在被允许的能力面内选工具；不要把未 surfaced 的工具、workflow、agent、MCP 能力或权限当成已确认存在。',
   ];
+
+  if (Array.isArray(sessionContext?.toolNames) && sessionContext.toolNames.length > 0) {
+    lines.push('把 JSON snapshot 里的 `host.tools` 当成当前直接 surfaced 的原生工具面；`host.deferred_tools` 只是延迟发现/加载线索，不代表全部工具列表。');
+  }
+
+  if (hasReadOnlyPlanningHelpers) {
+    lines.push('`Plan` / `Explore` 是只读 helper agent：它们可以帮你搜集信息或整理方案，但不等于 session 级 `EnterPlanMode`，也不会自动要求走 plan-mode approval flow。');
+  }
 
   if (!signals?.lexiconGuided) {
     lines.push('当前不要依赖词表；优先依据 prompt 结构、已 surfaced 的 capability 名称、tool schema 和 continuity 来判断，不要把“无关键词”误读成“无意图”。');
@@ -110,8 +122,13 @@ export function buildRouteDecisionLines(signals = {}, sessionContext = {}, guida
     lines.push(`当前 active specialization \`${specialization}\`（\`${responseContract.selection_basis || 'host_continuity'}\`）优先；沿这个 continuity / protocol path 收口，不要只因为正文措辞变化就改道。`);
   } else if (specialization && responseContract?.selection_strength === 'medium') {
     lines.push(`当前 active specialization \`${specialization}\`（\`${responseContract.selection_basis || 'visible_surface'}\`）优先；沿这个可见 path 推进，除非更高优先级规则要求切换。`);
-  } else if (specialization && responseContract?.selection_strength === 'weak') {
-    lines.push(`当前 active specialization \`${specialization}\`（\`${responseContract.selection_basis || 'weak_request_shape'}\`）只用来约束输出形状和 tie-breaker；仍直接按用户原话做语义判断。`);
+  } else if (Array.isArray(specializationCandidates?.items) && specializationCandidates.items.length > 0) {
+    const candidateIds = specializationCandidates.items.map((item) => `\`${item.id}\``).join(', ');
+    lines.push(`当前没有被宿主强 continuity 锁死的单一路由；直接依据用户原话语义，在这些候选里选最贴近的一项：${candidateIds}。`);
+    lines.push('一旦在候选集内完成语义选择，就沿该 candidate 的 `use_when` / `avoid_when` / `recommended_shape` 收口；不要再从关键词、措辞或你自己刚生成的正文里反推这次选择。');
+    if (specialization && responseContract?.selection_strength === 'weak') {
+      lines.push(`当前 active specialization \`${specialization}\`（\`${responseContract.selection_basis || 'weak_request_shape'}\`）只是弱提示；可以被同一候选集内更贴近用户真实语义的路线替代。`);
+    }
   }
 
   if (continuity.active_task_board) {
@@ -236,6 +253,10 @@ export function buildRouteDecisionLines(signals = {}, sessionContext = {}, guida
     lines.push('宣称完成前先做最贴近改动范围的验证；没验证就明确说没验证。');
   }
 
+  if ((signals.implement || signals.boundedImplementation) && !continuity.plan_mode_entered) {
+    lines.push('当前更像边界清晰的实施切片：优先直接执行；必要时只派 `Explore` / `Plan` 做只读补充，不要仅因为多文件、需要先读代码，或宿主 surfaced 了 `Plan` agent 就进入 `EnterPlanMode`。');
+  }
+
   if (specialization === 'compare') {
     lines.push('按 compare 方式回答：先直接给判断，再给紧凑 Markdown 对比表，最后给建议或适用边界。');
   }
@@ -254,6 +275,9 @@ export function buildRouteDecisionLines(signals = {}, sessionContext = {}, guida
 
   if (specialization === 'planning') {
     lines.push('按 planning 方式回答：先收约束和真实阻塞，再给可执行计划；只有真阻塞才 AskUserQuestion，不要把弱确认伪装成计划审批。');
+    if (!continuity.plan_mode_entered) {
+      lines.push('当前 `planning` specialization 只要求这轮先给计划与顺序，不等于必须进入 session 级 plan mode；只有真实架构歧义、需求未清、高影响重构，或需要原生 plan approval flow 时才考虑 `EnterPlanMode`。');
+    }
   }
 
   if (specialization === 'team_approval') {

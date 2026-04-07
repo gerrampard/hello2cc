@@ -56,6 +56,13 @@ function routeRole(signals = {}, sessionContext = {}, continuity = {}, specializ
   return 'general_operator';
 }
 
+function routeSelectionMode(selection = {}) {
+  const strength = trimmed(selection?.selection_strength).toLowerCase();
+  if (strength === 'strong') return 'host_locked_continuity';
+  if (strength === 'medium') return 'host_guided_visible_surface';
+  return 'semantic_choice_within_candidates';
+}
+
 export function buildRouteResponseContract(signals = {}, sessionContext = {}, continuity = {}) {
   const selection = describeRouteSpecialization(signals, sessionContext, continuity);
   const specialization = selection.specialization || routeSpecialization(signals, continuity, sessionContext);
@@ -68,6 +75,8 @@ export function buildRouteResponseContract(signals = {}, sessionContext = {}, co
     specialization: specialization || undefined,
     selection_basis: selection.selection_basis,
     selection_strength: selection.selection_strength,
+    selection_mode: routeSelectionMode(selection),
+    specialization_is_hint: selection.selection_strength === 'weak' || undefined,
     opening_style: 'direct_no_internal_deliberation',
     visible_text_language: 'follow_user_language',
     preferred_shape: preferredShape,
@@ -143,9 +152,9 @@ export function buildRouteExecutionPlaybook(signals = {}, sessionContext = {}, c
       ordered_steps: specialization === 'team_approval'
         ? ['inspect_pending_plan_approvals', 'review_top_request_and_context', 'respond_via_structured_SendMessage', 'summarize_remaining_approvals']
         : specialization === 'handoff'
-          ? ['inspect_handoff_candidates', 'choose_follow_up_or_reassignment', 'change_task_board_state_or_SendMessage', 'summarize_next_owner_or_blocker']
+          ? ['inspect_handoff_candidates', 'refresh_task_state', 'close_or_reassign_via_TaskUpdate', 'summarize_next_owner_or_blocker']
           : specialization === 'team_status'
-            ? ['inspect_host_team_continuity', 'rank_actions_and_open_tasks', 'state_next_action_first', 'summarize_remaining_context']
+            ? ['inspect_host_team_continuity', 'refresh_open_tasks_before_status', 'state_next_action_first', 'close_finished_tasks_or_summarize']
             : actionItems.length > 0
               ? ['review_host_action_items', 'handle_highest_priority_action_first', 'stay_on_task_board_or_structured_SendMessage', 'summarize_remaining_actions']
               : ['inspect_task_board_continuity', 'advance_or_reassign_tasks', 'use_SendMessage_for_real_team_coordination'],
@@ -153,7 +162,7 @@ export function buildRouteExecutionPlaybook(signals = {}, sessionContext = {}, c
         ? actionItemToolHints(actionItems)
         : ['TaskList', 'TaskGet', 'TaskUpdate', 'SendMessage'],
       continuation_rule: continuity.plan_mode_exited ? 'continue_from_last_approved_plan' : undefined,
-      avoid_shortcuts: ['plain_text_team_broadcast', 'ignore_higher_priority_action_items', 'reopen_plan_without_boundary_change'],
+      avoid_shortcuts: ['plain_text_team_broadcast', 'ignore_higher_priority_action_items', 'reopen_plan_without_boundary_change', 'trust_plain_text_done_when_task_board_is_open'],
     });
   }
 
@@ -162,18 +171,18 @@ export function buildRouteExecutionPlaybook(signals = {}, sessionContext = {}, c
       role,
       specialization: specialization || undefined,
       ordered_steps: specialization === 'handoff'
-        ? ['read_current_task_state', 'resolve_blocker_or_prepare_handoff', 'update_task_board_state', 'send_follow_up_if_needed']
+        ? ['read_current_task_state', 'resolve_blocker_or_prepare_handoff', 'record_handoff_via_TaskUpdate', 'send_follow_up_if_needed']
         : specialization === 'team_status'
-          ? ['read_task_board_state', 'state_current_status_with_next_action', 'report_via_task_board_or_SendMessage']
+          ? ['refresh_task_state', 'state_current_status_with_next_action', 'close_or_keep_in_progress']
           : pendingAssignments.length > 0
-            ? ['pick_up_assignment_via_TaskGet', 'mark_in_progress_via_TaskUpdate', 'complete_or_unblock_slice', 'report_blockers_or_finish_cleanly']
+            ? ['pick_up_assignment_via_TaskGet', 'mark_in_progress_via_TaskUpdate', 'finish_slice_and_validate', 'close_task_or_record_blocker', 'only_then_report_or_idle']
             : currentAgentAssignments.length > 0
-              ? ['read_current_task_state', 'continue_assigned_slice', 'validate_local_changes', 'update_task_or_send_handoff']
+              ? ['refresh_task_state', 'continue_slice_and_validate', 'close_task_or_record_blocker', 'only_then_report_or_idle']
               : ['read_task_board_state', 'claim_or_continue_real_work', 'report_status_via_task_board_or_SendMessage'],
       primary_tools: blockedTasks.length > 0
         ? ['TaskGet', 'TaskUpdate', 'SendMessage']
         : ['TaskList', 'TaskGet', 'TaskUpdate', 'SendMessage'],
-      avoid_shortcuts: ['ask_for_work_when_task_exists', 'fake_done_or_idle_protocol_messages'],
+      avoid_shortcuts: ['ask_for_work_when_task_exists', 'fake_done_or_idle_protocol_messages', 'idle_or_summary_before_task_board_closure'],
     });
   }
 

@@ -79,7 +79,8 @@ function summarizeActionItems(summary) {
 function buildSharedRules() {
   return [
     '- Higher-priority host/project rules win.',
-    '- Stay on visible Claude Code skills/workflows/tools and follow the JSON contracts below literally.',
+    '- Stay on visible Claude Code surfaces and follow the JSON contracts.',
+    '- If `selection_mode` is `semantic_choice_within_candidates`, choose inside `specialization_candidates` by task meaning.',
   ];
 }
 
@@ -91,21 +92,21 @@ export function buildModeGuidance(mode) {
       '',
       ...sharedRules,
       '- Read-only: start with native search and targeted reads; use `ToolSearch` only for capability uncertainty.',
-      '- Return exact paths, symbols, and unknowns; use a compact Markdown table when comparison helps.',
+      '- Return exact paths, symbols, and unknowns; use compact Markdown tables when they help.',
     ],
     plan: [
       '# hello2cc Plan mode',
       '',
       ...sharedRules,
       '- Read-only planning: produce an ordered plan with validation, rollback risks, and ownership splits.',
-      '- Distinguish main-thread work, parallel native `Agent` work, and any real team workflow.',
+      '- Distinguish main-thread work, parallel native `Agent` work, and real team workflow.',
     ],
     general: [
       '# hello2cc General-Purpose mode',
       '',
       ...sharedRules,
       '- Can write: prefer surgical edits and the narrowest relevant validation.',
-      '- For compare or trade-off work, answer judgment first, then use a compact Markdown table, then state the recommendation or boundary.',
+      '- For compare/trade-off work, answer judgment first, then a compact Markdown table, then the recommendation or boundary.',
       '- Report changed files, validation status, and remaining risks plainly.',
     ],
   };
@@ -133,9 +134,9 @@ export function buildTeammateOverlay(state) {
 
   const lines = [
     '## hello2cc teammate overlay',
-    '- Team protocol: use `SendMessage`; plain prose never reaches the team. Task flow: `TaskList` -> `TaskGet` -> `TaskUpdate(status:"in_progress")` -> `TaskUpdate(status:"completed")`; blockers or handoff -> `SendMessage`.',
+    '- Team protocol: coordinate via `SendMessage`; task flow stays on `TaskList` -> `TaskGet` -> `TaskUpdate`; plain text does not close tasks.',
     canWrite
-      ? '- Writable teammate: once the slice is clear, read code, edit files, and validate.'
+      ? '- Writable teammate: once clear, read code, edit files, and validate.'
       : '- Read-only teammate: search, read, and plan only; route edits back through `SendMessage`.',
     ...(assignmentLine ? [`- 当前任务: ${assignmentLine}。`] : []),
     ...(pendingLine
@@ -147,7 +148,9 @@ export function buildTeammateOverlay(state) {
     ...(guardLine
       ? [`- Follow \`recovery_playbook\` guards first: ${guardLine}。`]
       : []),
-    '- End normally; let `TeammateIdle` sync the latest task/message summary back to the lead.',
+    '- Closure rule: refresh via `TaskGet` / `TaskList`; use `TaskUpdate(status:"completed")` only when the slice is actually done.',
+    '- Otherwise keep `TaskUpdate` truthful; use `SendMessage` only for blocker or handoff context.',
+    '- `TeammateIdle` mirrors summary only; it never replaces `TaskUpdate` or closes tasks.',
   ];
 
   return lines.join('\n');

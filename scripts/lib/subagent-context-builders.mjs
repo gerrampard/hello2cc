@@ -117,6 +117,7 @@ function modeState(mode, identity, payload = {}, teamState = {}) {
   );
   const recoveryPlaybook = buildSubagentRecoveryPlaybook(mode, taskProfile, {
     canWrite: Boolean(stateByMode[mode]?.can_write),
+    assignedTasks,
     pendingAssignments,
     blockedTaskRecords,
     hasTeamIdentity: Boolean(identity),

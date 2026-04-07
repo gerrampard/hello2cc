@@ -44,6 +44,7 @@ test('session-start surfaces host tools and native agents as structured state', 
     ],
     agents: ['Claude Code Guide', 'Explore', 'Plan', 'general-purpose'],
   }, env);
+  const context = output.hookSpecificOutput.additionalContext;
   const state = parseAdditionalContextJson(output.hookSpecificOutput.additionalContext);
 
   assert.ok(state.host.tools.includes('AskUserQuestion'));
@@ -54,6 +55,8 @@ test('session-start surfaces host tools and native agents as structured state', 
   assert.ok(state.host.agents.some((agent) => agent.name === 'Plan' && agent.role === '只读规划'));
   assert.ok(state.host.agents.some((agent) => agent.name === 'General-Purpose' && agent.role === '通用执行'));
   assert.ok(state.host.agents.some((agent) => agent.name === 'Claude Code Guide'));
+  assert.match(context, /Plan.*Explore.*只读 helper|只读 helper.*EnterPlanMode/i);
+  assert.match(context, /路径清晰的实现|clear bug fix|默认直接执行/i);
 });
 
 test('session-start surfaces transcript-derived skills workflows deferred tools and MCP resources', () => {

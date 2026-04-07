@@ -1,6 +1,6 @@
 import { buildCapabilityPolicySnapshot, buildRouteCapabilityPolicyLines } from './capability-policy-registry.mjs';
 import { buildRouteDecisionTieBreakers } from './decision-tie-breakers.mjs';
-import { buildPromptHostState, compactState } from './host-state-context.mjs';
+import { buildPromptHostState, compactState, hasDynamicPromptHostState } from './host-state-context.mjs';
 import { analyzeIntentProfile, summarizeIntentForState } from './intent-profile.mjs';
 import { buildRendererContract } from './renderer-contracts.mjs';
 import { buildRouteDecisionLines } from './route-decision-lines.mjs';
@@ -25,6 +25,7 @@ export function buildRouteStateContext(prompt, sessionContext = {}) {
   const decisionTieBreakers = buildRouteDecisionTieBreakers(signals, sessionContext, continuity);
   const specializationCandidates = buildRouteSpecializationCandidates(signals, sessionContext, continuity);
   const hostState = buildPromptHostState(sessionContext);
+  const hasDynamicHostState = hasDynamicPromptHostState(sessionContext);
   const routeLines = buildRouteCapabilityPolicyLines(signals, sessionContext);
   const decisionLines = buildRouteDecisionLines(signals, sessionContext, {
     continuity,
@@ -37,7 +38,7 @@ export function buildRouteStateContext(prompt, sessionContext = {}) {
   });
   const shouldForceSnapshot = Boolean(signals.artifactShapeGuided);
 
-  if (!routeLines.length && !hostState && !shouldForceSnapshot) {
+  if (!routeLines.length && !hasDynamicHostState && !shouldForceSnapshot) {
     return '';
   }
 

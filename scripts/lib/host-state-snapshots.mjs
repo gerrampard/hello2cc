@@ -135,6 +135,7 @@ export function hostSnapshot(sessionContext = {}, options = {}) {
 export function promptHostStateSnapshot(sessionContext = {}) {
   return compactState({
     host: compactState({
+      tools: uniqueStrings(sessionContext?.toolNames),
       delta_surfaces: compactState({
         agents: surfacedAgentSurfaces(sessionContext),
       }),

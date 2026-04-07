@@ -1126,6 +1126,12 @@ test('route exposes blocker continuity for leader and teammate paths', () => {
   });
   assert.ok(leaderState.recovery_playbook.recipes.some((recipe) => recipe.guard === 'handoff_candidate_continuity'));
   assert.ok(leaderState.decision_tie_breakers.items.some((item) => item.id === 'existing_handoff_candidate_before_new_branch'));
+  assert.deepEqual(leaderState.execution_playbook.ordered_steps, [
+    'inspect_handoff_candidates',
+    'refresh_task_state',
+    'close_or_reassign_via_TaskUpdate',
+    'summarize_next_owner_or_blocker',
+  ]);
   assert.match(leaderOutput.hookSpecificOutput.additionalContext, /handoff \/ reassignment|blocked by backend-owner|follow-up 候选/i);
   assert.match(leaderOutput.hookSpecificOutput.additionalContext, /存在 blocker|TaskUpdate\(addBlockedBy\/addBlocks\)/);
 
@@ -1144,6 +1150,13 @@ test('route exposes blocker continuity for leader and teammate paths', () => {
       blocked_by: ['3'],
     },
   ]);
+  assert.deepEqual(teammateState.execution_playbook.ordered_steps, [
+    'read_current_task_state',
+    'resolve_blocker_or_prepare_handoff',
+    'record_handoff_via_TaskUpdate',
+    'send_follow_up_if_needed',
+  ]);
+  assert.ok(teammateState.execution_playbook.avoid_shortcuts.includes('idle_or_summary_before_task_board_closure'));
   assert.match(teammateOutput.hookSpecificOutput.additionalContext, /被 blocker 卡住|handoff/);
 });
 

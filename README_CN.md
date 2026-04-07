@@ -4,12 +4,12 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](./LICENSE)
 [![Publish](https://img.shields.io/github/actions/workflow/status/hellowind777/hello2cc/publish.yml?label=publish)](https://github.com/hellowind777/hello2cc/actions/workflows/publish.yml)
 
-让第三方模型在 Claude Code 里用得更自然。
+让第三方模型在 Claude Code 里尽量按 Opus 一样思考、运行、选工具和输出。
 
 `hello2cc` 不负责替你接入模型、管理网关、配置账号权限。  
 它解决的是另一层问题：
 
-> 当你已经通过 **CCSwitch** 或其他映射方式把 GPT、Kimi、DeepSeek、Gemini、Qwen 等第三方模型接进 Claude Code 后，`hello2cc` 帮它们更容易发现并正确使用当前会话里已经可用的能力。
+> 当你已经通过 **CCSwitch** 或其他映射方式把 GPT、Kimi、DeepSeek、Gemini、Qwen 等第三方模型接进 Claude Code 后，`hello2cc` 会把它们继续往 Opus-compatible 的 Claude Code 原生工作方式上推：原生能力优先级、工具/agent/team 选择、失败恢复，以及输出风格。
 
 **语言：** [English](./README.md) | 简体中文
 
@@ -35,9 +35,9 @@
 | 明明已有 skill 或 workflow，模型却反复重写流程 | 更倾向续用已 surfaced 或已加载的流程 |
 | 明明 MCP resource 或工具已经可直接调用，模型却还在绕路 | 更容易优先走当前会话里已经可用的能力 |
 | 普通并行 worker 被误判成 team / teammate 语义 | 减少可避免的 agent 路由错误 |
-| 模型能回答，但不会选合适的 Claude Code 能力入口 | 让工具、agent、workflow、MCP 的使用更自然 |
-| 模型过度依赖固定措辞或关键词提示 | 更倾向根据真实意图，在 Claude Code 已暴露能力边界内做选择 |
-| 多个插件同时启用，提示互相打架 | 提供更安静的兼容模式 |
+| 模型能回答，但不会选合适的 Claude Code 能力入口 | 把工具、agent、workflow、MCP 的选择压回 Claude Code 原生优先级 |
+| 模型过度依赖固定措辞或关键词提示 | 改成在宿主公开候选内做语言无关的语义匹配 |
+| 输出风格和原生 Opus 差异很大 | 强制收敛到更接近原生 Claude Code 的结果导向风格 |
 | 对话里元叙述过多 | 更接近简洁、行动优先的原生风格 |
 
 ---
@@ -66,8 +66,8 @@
 |---|---|
 | 安装流程 | 3 步 |
 | 安装后额外入口命令 | 0 |
-| 常见配置方案 | 3 种 |
-| 核心目标 | 1 个 —— 让第三方模型更自然地使用 Claude Code |
+| 常见配置方案 | 2 种 |
+| 核心目标 | 1 个 —— 让第三方模型尽量按原生 Claude Code / Opus 习惯工作 |
 
 ---
 
@@ -148,9 +148,9 @@ claude plugins install hello2cc@hello2cc-local
 
 ## 🔧 推荐配置
 
-### 方案 A：尽量保持默认
+### 方案 A：尽量保持默认强对齐
 
-适合：你的模型映射已经由 **CCSwitch** 处理，只想让行为更顺一点。
+适合：你的模型映射已经由 **CCSwitch** 处理，希望 hello2cc 直接按默认强对齐层工作。
 
 ```json
 {
@@ -171,16 +171,6 @@ claude plugins install hello2cc@hello2cc-local
 
 如果真实模型落点由 **CCSwitch** 控制，就继续把真实映射放在 CCSwitch 里。  
 在 `hello2cc` 里优先使用稳定的 Claude 槽位值，例如 `inherit`、`opus`、`sonnet`、`haiku`。
-
-### 方案 C：和其他插件安静共存
-
-适合：多个插件一起注入提示，导致会话太吵。
-
-```json
-{
-  "compatibility_mode": "sanitize-only"
-}
-```
 
 ### 0.4.5 特别加强了什么
 
@@ -249,19 +239,8 @@ claude plugins install hello2cc@hello2cc-local
 
 ### 多个插件一起启用时感觉很乱
 
-可以使用：
-
-```json
-{
-  "compatibility_mode": "sanitize-only"
-}
-```
-
-如果你在插件配置界面里一时没看到它：
-
-1. 查找名为 `Compatibility Mode` 的字段
-2. 升级或重装到最新本地版本
-3. 在旧版本里继续翻后面的分页字段，因为它之前排在表单较后位置
+当前版本不再提供 `sanitize-only` 这类把 hello2cc 降成轻量兼容层的模式。  
+如果多个插件同时注入提示，优先保留一个主导行为对齐层；需要时禁用冲突插件或调整它们的提示，避免让多个插件同时争夺主工作流。
 
 ### 仍然遇到 `summary is required when message is a string`
 
@@ -327,9 +306,9 @@ claude plugins install hello2cc@hello2cc-local
 </details>
 
 <details>
-<summary><strong>什么时候建议使用 <code>sanitize-only</code>？</strong></summary>
+<summary><strong>现在还能把 hello2cc 切成轻量兼容模式吗？</strong></summary>
 
-当多个插件同时工作、你希望 hello2cc 保持更安静，只保留关键兼容修正时，就适合用它。
+不能。当前方向是把 hello2cc 保持成默认强对齐层，而不是在需要时退回只做少量净化和兼容修正的弱模式。
 
 </details>
 
