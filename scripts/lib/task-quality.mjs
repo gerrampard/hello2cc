@@ -2,6 +2,11 @@ function normalizeText(value) {
   return String(value || '').trim().replace(/\s+/g, ' ');
 }
 
+function normalizeHookEventName(value) {
+  const normalized = normalizeText(value);
+  return normalized || 'TaskCompleted';
+}
+
 function visibleCharCount(text) {
   return Array.from(String(text || '').replace(/\s+/g, '')).length;
 }
@@ -15,6 +20,10 @@ function lines(text) {
 
 function lineCount(text) {
   return lines(text).length;
+}
+
+function hasDescriptionStructure(text) {
+  return hasStructuredList(text) || hasLabeledSections(text) || lineCount(text) >= 2 || clauseCount(text) >= 2;
 }
 
 function clauseCount(text) {
@@ -74,20 +83,22 @@ export function taskSubjectTooVague(taskSubject) {
   return chars < 6;
 }
 
-export function taskDescriptionTooThin(taskDescription) {
+export function taskDescriptionTooThin(taskDescription, hookEventName) {
   const description = normalizeText(taskDescription);
-  return visibleCharCount(description) < 28;
+  if (visibleCharCount(description) >= 28) {
+    return false;
+  }
+
+  if (!taskRequiresCompletionEvidence(hookEventName)) {
+    return !hasDescriptionStructure(taskDescription);
+  }
+
+  return true;
 }
 
 export function taskDescriptionHasDeliverable(taskDescription) {
   const text = String(taskDescription || '');
-  return (
-    hasPathOrCommandEvidence(text) ||
-    hasStructuredList(text) ||
-    hasLabeledSections(text) ||
-    lineCount(text) >= 2 ||
-    clauseCount(text) >= 2
-  );
+  return hasPathOrCommandEvidence(text) || hasDescriptionStructure(text);
 }
 
 export function taskDescriptionHasEvidence(taskDescription) {
@@ -101,20 +112,36 @@ export function taskDescriptionHasEvidence(taskDescription) {
   );
 }
 
-export function validateTaskDefinition({ task_subject: taskSubject, task_description: taskDescription }) {
+export function taskRequiresCompletionEvidence(hookEventName) {
+  return normalizeHookEventName(hookEventName) !== 'TaskCreated';
+}
+
+export function getTaskValidationStage(payload = {}) {
+  return taskRequiresCompletionEvidence(payload?.hook_event_name) ? 'completion' : 'creation';
+}
+
+export function validateTaskDefinition({
+  task_subject: taskSubject,
+  task_description: taskDescription,
+  hook_event_name: hookEventName,
+} = {}) {
+  const requiresCompletionEvidence = taskRequiresCompletionEvidence(hookEventName);
+
   if (taskSubjectTooVague(taskSubject)) {
     return 'Task subject is too vague. Rename it to a concrete slice such as “inspect routing for MCP tools” or “verify TeamCreate task flow”.';
   }
 
-  if (taskDescriptionTooThin(taskDescription)) {
-    return 'Task description is too short. Include the intended deliverable, scope, and completion evidence.';
+  if (taskDescriptionTooThin(taskDescription, hookEventName)) {
+    return requiresCompletionEvidence
+      ? 'Task description is too short. Include the intended deliverable, scope, and completion evidence.'
+      : 'Task description is too short. Include the concrete action and scope.';
   }
 
   if (!taskDescriptionHasDeliverable(taskDescription)) {
     return 'Task description should name the deliverable or action, not just the topic.';
   }
 
-  if (!taskDescriptionHasEvidence(taskDescription)) {
+  if (requiresCompletionEvidence && !taskDescriptionHasEvidence(taskDescription)) {
     return 'Task description should include completion evidence such as tests, validation, exact paths, or another acceptance check.';
   }
 

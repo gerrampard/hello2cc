@@ -34,6 +34,16 @@ test('task-created blocks thin task definitions before they enter the board', ()
   assert.match(result.stderr, /too vague|too short/i);
 });
 
+test('task-created accepts actionable tasks without explicit completion evidence', () => {
+  const result = run({
+    hook_event_name: 'TaskCreated',
+    task_subject: '降级 hello2cc 到稳定版本',
+    task_description: '先定位 hello2cc 的实际安装/引用位置，再做降级。',
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+});
+
 test('task-completed blocks missing completion evidence', () => {
   const result = run({
     task_subject: 'Inspect MCP routing for GitHub access',
@@ -42,6 +52,18 @@ test('task-completed blocks missing completion evidence', () => {
 
   assert.equal(result.status, 2);
   assert.match(result.stderr, /completion evidence/i);
+});
+
+test('task-created uses creation-specific guidance when it blocks', () => {
+  const result = run({
+    hook_event_name: 'TaskCreated',
+    task_subject: 'task',
+    task_description: 'Look at the thing.',
+  });
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /before creating it/i);
+  assert.doesNotMatch(result.stderr, /before marking it done/i);
 });
 
 test('task-completed accepts concrete deliverable with evidence', () => {
