@@ -4,6 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   extractIssueRefs,
+  fallbackReleaseSection,
   normalizeTag,
   readChangelogSection,
   renderAcknowledgements,
@@ -130,14 +131,28 @@ async function main() {
   const changelogPath = resolve(args.changelog || 'CHANGELOG.md');
   const orderedTags = gitLines('tag', '--sort=creatordate');
   const tag = resolveExistingTag(requestedTag, orderedTags);
-
-  const section = readChangelogSection(changelogPath, requestedTag);
-  if (!section?.body?.trim()) {
-    throw new Error(`Missing CHANGELOG section for ${requestedTag}. Add "## ${requestedTag.replace(/^v/, '').match(/^\d+\.\d+\.\d+/)?.[0] || requestedTag.replace(/^v/, '')} - YYYY-MM-DD" with bullet points before publishing.`);
-  }
-
   const fromTag = previousTag(tag, orderedTags);
   const commitText = fromTag ? gitText('log', '--format=%B', `${fromTag}..${tag}`) : gitText('log', '--format=%B', '-n', '1', tag);
+  const commitSubjects = fromTag ? gitLines('log', '--format=%s', `${fromTag}..${tag}`) : gitLines('log', '--format=%s', '-n', '1', tag);
+  const releaseDate = gitText('log', '-1', '--format=%cs', tag);
+
+  let section = null;
+  try {
+    section = readChangelogSection(changelogPath, requestedTag);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      throw error;
+    }
+  }
+
+  if (!section?.body?.trim()) {
+    process.stderr.write(`warning: Missing CHANGELOG section for ${requestedTag}; falling back to commit-subject release notes.\n`);
+    section = fallbackReleaseSection(requestedTag, {
+      date: releaseDate,
+      commitSubjects,
+    });
+  }
+
   const issueNumbers = extractIssueRefs(section.body, commitText);
   const acknowledgementRefs = await resolveAcknowledgementRefs(repo, issueNumbers);
   const notes = renderReleaseNotes({

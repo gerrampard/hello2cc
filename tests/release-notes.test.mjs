@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   changelogSectionForTag,
   extractIssueRefs,
+  fallbackReleaseSection,
   tagLookupVariants,
   renderAcknowledgements,
   renderReleaseNotes,
@@ -75,6 +76,20 @@ test('renders acknowledgement lines with issue and pr labels', () => {
   assert.match(text, /致谢/);
   assert.match(text, /感谢 @alice 对 issue #7/);
   assert.match(text, /感谢 @bob 对 PR #12/);
+});
+
+test('builds fallback release section from commit subjects', () => {
+  const section = fallbackReleaseSection('v1.2.4', {
+    date: '2026-04-03',
+    commitSubjects: ['fix: patch release flow', 'test: cover missing changelog fallback'],
+  });
+
+  assert.deepEqual(section, {
+    heading: '## 1.2.4 - 2026-04-03',
+    version: '1.2.4',
+    date: '2026-04-03',
+    body: '- fix: patch release flow\n- test: cover missing changelog fallback',
+  });
 });
 
 test('renders full release notes with compare link', () => {

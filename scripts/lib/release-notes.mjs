@@ -53,6 +53,25 @@ export function readChangelogSection(filePath, tag) {
   return changelogSectionForTag(markdown, tag);
 }
 
+export function fallbackReleaseSection(tag, options = {}) {
+  const version = versionFromTag(tag);
+  const date = String(options.date || '').trim() || new Date().toISOString().slice(0, 10);
+  const commitSubjects = [...new Set(
+    (Array.isArray(options.commitSubjects) ? options.commitSubjects : [])
+      .map((subject) => String(subject || '').trim())
+      .filter(Boolean),
+  )];
+
+  return {
+    heading: `## ${version} - ${date}`,
+    version,
+    date,
+    body: commitSubjects.length > 0
+      ? commitSubjects.map((subject) => `- ${subject}`).join('\n')
+      : '- 自动生成发布说明：请查看完整变更对比了解详情',
+  };
+}
+
 export function extractIssueRefs(...texts) {
   const refs = new Set();
 
