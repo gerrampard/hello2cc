@@ -23,15 +23,14 @@ test('task-completed blocks vague task subjects', () => {
   assert.match(result.stderr, /too vague/i);
 });
 
-test('task-created blocks thin task definitions before they enter the board', () => {
+test('task-created no longer blocks thin task definitions before they enter the board', () => {
   const result = run({
     hook_event_name: 'TaskCreated',
     task_subject: 'task',
     task_description: 'Look at the thing.',
   });
 
-  assert.equal(result.status, 2);
-  assert.match(result.stderr, /too vague|too short/i);
+  assert.equal(result.status, 0, result.stderr);
 });
 
 test('task-created accepts actionable tasks without explicit completion evidence', () => {
@@ -54,16 +53,24 @@ test('task-completed blocks missing completion evidence', () => {
   assert.match(result.stderr, /completion evidence/i);
 });
 
-test('task-created uses creation-specific guidance when it blocks', () => {
+test('task-created no longer blocks the issue-15 topic-only description shape', () => {
   const result = run({
     hook_event_name: 'TaskCreated',
-    task_subject: 'task',
-    task_description: 'Look at the thing.',
+    task_subject: '实现 hello2cc 静默支持 ccstatusline 上下文显示',
+    task_description: '修复 ccstatusline 上下文显示问题',
   });
 
-  assert.equal(result.status, 2);
-  assert.match(result.stderr, /before creating it/i);
-  assert.doesNotMatch(result.stderr, /before marking it done/i);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('task-created no longer blocks empty descriptions if the host forwards one', () => {
+  const result = run({
+    hook_event_name: 'TaskCreated',
+    task_subject: '跟进 issue 15',
+    task_description: '',
+  });
+
+  assert.equal(result.status, 0, result.stderr);
 });
 
 test('task-completed accepts concrete deliverable with evidence', () => {

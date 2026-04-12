@@ -127,6 +127,10 @@ export function validateTaskDefinition({
 } = {}) {
   const requiresCompletionEvidence = taskRequiresCompletionEvidence(hookEventName);
 
+  if (!requiresCompletionEvidence) {
+    return '';
+  }
+
   if (taskSubjectTooVague(taskSubject)) {
     return 'Task subject is too vague. Rename it to a concrete slice such as “inspect routing for MCP tools” or “verify TeamCreate task flow”.';
   }
