@@ -27,7 +27,7 @@ export const EXECUTION_POLICY_DEFINITIONS = [
       if (activeTeamName(sessionContext)) {
         lines.push('- 当前已处于真实 active team continuity；继续沿 `SendMessage` 与 task board 工具收口，不要把团队状态退化回正文口头广播。');
       } else if (hasBootstrappableTeamWorkflowSurface(sessionContext)) {
-        lines.push('- 进入 team 模式后，先 `TeamCreate`，再 `TaskList` / `TaskCreate` 建真实 task board，再启动 teammate；后续 `Agent` 显式传 `name` + `team_name`。');
+        lines.push('- 当前宿主具备真实 team bootstrap 能力，但只有当前请求明确要求持久 task board / owner / handoff / shared teammate context 时才启用；否则继续 plain `Agent` worker。');
       } else {
         lines.push('- 当前未看到完整的 team bootstrapping 工具面；不要把普通 `Agent` worker、background agents，或暂时出现的 teammate UI 误读成真实 team 已创建。');
       }

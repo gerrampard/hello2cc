@@ -174,7 +174,7 @@ test('pre-agent-model strips reserved assistant team placeholders', () => {
   assert.match(output.hookSpecificOutput.permissionDecisionReason, /implicit assistant team semantics/i);
 });
 
-test('pre-team-create no longer denies team creation when the request does not imply sustained team semantics', () => {
+test('pre-team-create denies team creation when the request does not imply sustained team semantics', () => {
   const env = isolatedEnv();
 
   run('route', {
@@ -191,7 +191,8 @@ test('pre-team-create no longer denies team creation when the request does not i
     },
   }, env);
 
-  assert.deepEqual(output, { suppressOutput: true });
+  assert.equal(output.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(output.hookSpecificOutput.permissionDecisionReason, /does not imply sustained team semantics/i);
 });
 
 test('pre-team-create allows native team creation for sustained collaboration requests', () => {
@@ -212,6 +213,73 @@ test('pre-team-create allows native team creation for sustained collaboration re
   }, env);
 
   assert.deepEqual(output, { suppressOutput: true });
+});
+
+test('pre-team-create blocks placeholder or reserved assistant team names', () => {
+  const env = isolatedEnv();
+
+  run('route', {
+    session_id: 'teamcreate-placeholder',
+    prompt: 'Use TeamCreate with teammates and a shared task board for this work.',
+  }, env);
+
+  const output = run('pre-team-create', {
+    session_id: 'teamcreate-placeholder',
+    tool_name: 'TeamCreate',
+    tool_input: {
+      team_name: '__omit__',
+      description: 'Bad placeholder',
+    },
+  }, env);
+
+  assert.equal(output.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(output.hookSpecificOutput.permissionDecisionReason, /placeholder or reserved assistant team names/i);
+});
+
+test('pre-team-create blocks redundant creation of an already active verified team', () => {
+  const env = isolatedEnv();
+  const sessionId = 'teamcreate-active-redundant';
+
+  run('post-tool-use', {
+    session_id: sessionId,
+    tool_name: 'TeamCreate',
+    tool_input: {
+      team_name: 'delivery-squad',
+    },
+    tool_response: {
+      team_name: 'delivery-squad',
+    },
+  }, env);
+  run('post-tool-use', {
+    session_id: sessionId,
+    tool_name: 'TaskCreate',
+    tool_input: {
+      subject: 'Implement frontend slice',
+      description: 'Real task board continuity exists now',
+    },
+    tool_response: {
+      task: {
+        id: '1',
+        subject: 'Implement frontend slice',
+      },
+    },
+  }, env);
+  run('route', {
+    session_id: sessionId,
+    prompt: 'Continue coordinating teammates on the shared task board for this implementation.',
+  }, env);
+
+  const output = run('pre-team-create', {
+    session_id: sessionId,
+    tool_name: 'TeamCreate',
+    tool_input: {
+      team_name: 'delivery-squad',
+      description: 'Recreate existing team',
+    },
+  }, env);
+
+  assert.equal(output.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(output.hookSpecificOutput.permissionDecisionReason, /verified active team context already exists/i);
 });
 
 test('pre-enter-worktree no longer pre-denies worktree creation when the prompt did not explicitly request it', () => {

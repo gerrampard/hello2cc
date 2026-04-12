@@ -1,5 +1,13 @@
 # 更新日志
 
+## 0.5.5 - 2026-04-12
+
+- 修复非显式持续协作请求下 `TeamCreate` 被误放行的问题，普通单次 worker / 一次性实现任务会在 `pre-team-create` 被拦回 plain `Agent` 路径
+- 新增 `TeamCreate.team_name` 占位值与保留 assistant team 名校验，阻断 `none` / `__omit__` / `main` 一类无效 team 名继续污染原生 team 创建链路
+- 当会话里已经存在已验证的 active team + task board 连续体时，阻止重复创建同名 team，避免偶发进入 Agent Team 后反复创建、反复失败
+- 收紧 capability policy 的 session 级 team 文案：只有当前请求明确要求持久 task board / owner / handoff / shared teammate context 时才引导走 real team bootstrap
+- 补充非 team 请求、占位 team 名、重复创建 active team、full team tools 下普通实现提示四类回归测试
+
 ## 0.5.4 - 2026-04-12
 
 - 统一在 session / team store、tool success/failure、TeammateIdle、route continuity 等入口净化 `none`、`__omit__` 一类伪 team 名，避免旧脏状态把普通 subagent 误判回 Agent Team

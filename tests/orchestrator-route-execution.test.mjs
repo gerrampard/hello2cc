@@ -313,6 +313,29 @@ test('route treats repo-heavy forward-slash Windows paths as complex implementat
   assert.doesNotMatch(context, /持续协作型 team|TeamCreate/);
 });
 
+test('route does not inject bootstrap team steps for plain implementation prompts even when the host exposes full team tools', () => {
+  const env = isolatedEnv();
+  run('session-start', {
+    session_id: 'route-plain-impl-no-team-bootstrap',
+    model: 'opus',
+    tools: ['Agent', 'TeamCreate', 'TaskCreate', 'TaskList', 'TaskGet', 'TaskUpdate', 'SendMessage'],
+  }, env);
+
+  const output = run('route', {
+    session_id: 'route-plain-impl-no-team-bootstrap',
+    tools: ['Agent', 'TeamCreate', 'TaskCreate', 'TaskList', 'TaskGet', 'TaskUpdate', 'SendMessage'],
+    prompt: 'Implement a focused one-file fix in scripts/lib/orchestrator-commands.mjs and keep the normal path.',
+  }, env);
+  const context = output.hookSpecificOutput.additionalContext;
+  const state = parseAdditionalContextJson(context);
+
+  assert.ok(state.host.tools.includes('TeamCreate'));
+  assert.equal(state.intent.actions.implement, true);
+  assert.equal(state.intent.routing.bounded_implementation, true);
+  assert.doesNotMatch(context, /进入 team 模式后，先 `TeamCreate`/);
+  assert.doesNotMatch(context, /优先 `TeamCreate` → `TaskList` \/ `TaskCreate` 建真实 task board → teammate/);
+});
+
 test('route keeps protocol explanation prompts out of capability and team-status routing', () => {
   const env = isolatedEnv();
   const cases = [
