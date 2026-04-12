@@ -16,10 +16,6 @@ function joinReasons(...items) {
   return items.filter(Boolean).join('; ');
 }
 
-function sameCaseInsensitiveValue(left, right) {
-  return readTrimmed(left).toLowerCase() === readTrimmed(right).toLowerCase();
-}
-
 export function normalizeAgentTeamSemantics(input = {}, sessionContext = {}) {
   const rawWorkerName = readTrimmed(input?.name);
   const workerName = participantNameOrEmpty(rawWorkerName);
@@ -132,8 +128,6 @@ export function normalizeAgentIsolation(input = {}, sessionContext = {}) {
 export function normalizeTeamCreateInput(input = {}, sessionContext = {}) {
   const rawRequestedTeamName = readTrimmed(input?.team_name);
   const requestedTeamName = realTeamNameOrEmpty(rawRequestedTeamName);
-  const activeTeamName = realTeamNameOrEmpty(sessionContext?.teamName);
-  const teamSemantics = hasIntentTeamSemantics(sessionContext);
 
   if (rawRequestedTeamName && !requestedTeamName) {
     return {
@@ -141,28 +135,6 @@ export function normalizeTeamCreateInput(input = {}, sessionContext = {}) {
       changed: false,
       blocked: true,
       reason: `hello2cc blocked TeamCreate.team_name=${JSON.stringify(rawRequestedTeamName)} because placeholder or reserved assistant team names cannot create a real native team; use a concrete team_name instead`,
-    };
-  }
-
-  if (!teamSemantics) {
-    return {
-      input,
-      changed: false,
-      blocked: true,
-      reason: 'hello2cc blocked TeamCreate because the current request does not imply sustained team semantics; plain workers should stay on Agent without creating a native team',
-    };
-  }
-
-  if (
-    activeTeamName
-    && provenActiveTeamContext(sessionContext)
-    && (!requestedTeamName || sameCaseInsensitiveValue(requestedTeamName, activeTeamName))
-  ) {
-    return {
-      input,
-      changed: false,
-      blocked: true,
-      reason: `hello2cc blocked redundant TeamCreate because a verified active team context already exists (${activeTeamName}); continue via SendMessage, task board tools, and named Agent teammates instead of recreating the same team`,
     };
   }
 

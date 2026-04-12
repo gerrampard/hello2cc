@@ -174,7 +174,7 @@ test('pre-agent-model strips reserved assistant team placeholders', () => {
   assert.match(output.hookSpecificOutput.permissionDecisionReason, /implicit assistant team semantics/i);
 });
 
-test('pre-team-create denies team creation when the request does not imply sustained team semantics', () => {
+test('pre-team-create no longer pre-denies team creation when the request does not imply sustained team semantics', () => {
   const env = isolatedEnv();
 
   run('route', {
@@ -191,8 +191,7 @@ test('pre-team-create denies team creation when the request does not imply susta
     },
   }, env);
 
-  assert.equal(output.hookSpecificOutput.permissionDecision, 'deny');
-  assert.match(output.hookSpecificOutput.permissionDecisionReason, /does not imply sustained team semantics/i);
+  assert.deepEqual(output, { suppressOutput: true });
 });
 
 test('pre-team-create allows native team creation for sustained collaboration requests', () => {
@@ -236,7 +235,7 @@ test('pre-team-create blocks placeholder or reserved assistant team names', () =
   assert.match(output.hookSpecificOutput.permissionDecisionReason, /placeholder or reserved assistant team names/i);
 });
 
-test('pre-team-create blocks redundant creation of an already active verified team', () => {
+test('pre-team-create no longer pre-denies redundant creation of an already active verified team', () => {
   const env = isolatedEnv();
   const sessionId = 'teamcreate-active-redundant';
 
@@ -278,8 +277,7 @@ test('pre-team-create blocks redundant creation of an already active verified te
     },
   }, env);
 
-  assert.equal(output.hookSpecificOutput.permissionDecision, 'deny');
-  assert.match(output.hookSpecificOutput.permissionDecisionReason, /verified active team context already exists/i);
+  assert.deepEqual(output, { suppressOutput: true });
 });
 
 test('pre-enter-worktree no longer pre-denies worktree creation when the prompt did not explicitly request it', () => {

@@ -1,5 +1,11 @@
 # 更新日志
 
+## 0.5.9 - 2026-04-12
+
+- 去掉 hello2cc 对 `TeamCreate` 的两条非宿主确定性前置 deny：普通非 team 语义请求、以及“当前已存在 active team”场景都改为交还 Claude Code 原生处理
+- 保留占位值 / 保留 assistant team 名拦截，以及已被宿主证明失败的 worktree 重试 fail-closed，这两类仍属于确定性护栏而不是语义越权
+- 补充 `pre-team-create` 放行回归测试，确保插件不再越过宿主先拦截原生 `TeamCreate`
+
 ## 0.5.8 - 2026-04-12
 
 - 去掉 hello2cc 对 `TaskUpdate(owner/addBlocks/addBlockedBy)` 的越界前置 deny，恢复到 Claude Code 原生 `TaskUpdate` 先执行、由宿主自身处理输入的边界
