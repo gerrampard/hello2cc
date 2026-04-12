@@ -32,9 +32,6 @@ function createPluginCache(root) {
     name: 'hello2cc',
     version: '0.2.3',
   }), 'utf8');
-  writeFileSync(join(pluginPath, 'settings.json'), JSON.stringify({
-    agent: 'hello2cc:native',
-  }), 'utf8');
   writeFileSync(join(pluginPath, 'agents', 'native.md'), '# hello2cc native\n', 'utf8');
   writeFileSync(join(pluginPath, 'output-styles', 'hello2cc-native.md'), '---\nforce-for-plugin: true\n---\n', 'utf8');
   return pluginPath;
@@ -53,7 +50,7 @@ function createSuccessfulStream(pluginPath) {
     subtype: 'hook_response',
     output: JSON.stringify({
       hookSpecificOutput: {
-        additionalContext: 'Claude Code Guide\nToolSearch',
+        additionalContext: '# hello2cc\n\n## 宿主状态快照\n```json\n{\n  "operator_profile": "opus-compatible-claude-code",\n  "protocol_adapters": {\n    "semantic_routing": "host_guarded_model_decides"\n  },\n  "host": {\n    "tools": [\n      "ToolSearch"\n    ]\n  }\n}\n```',
       },
     }),
   };

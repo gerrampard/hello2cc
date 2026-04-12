@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
-import { validateTaskDefinition } from './lib/task-quality.mjs';
+import { getTaskValidationStage, validateTaskDefinition } from './lib/task-quality.mjs';
 
 function readStdinJson() {
   try {
@@ -16,7 +16,11 @@ const payload = readStdinJson();
 const feedback = validateTaskDefinition(payload);
 
 if (feedback) {
-  process.stderr.write(`${feedback} Tighten the task spec or completion evidence before marking it done.\n`);
+  const stage = getTaskValidationStage(payload);
+  const guidance =
+    stage === 'creation'
+      ? 'Tighten the task subject or description before creating it.\n'
+      : 'Tighten the task spec or completion evidence before marking it done.\n';
+  process.stderr.write(`${feedback} ${guidance}`);
   process.exit(2);
 }
-

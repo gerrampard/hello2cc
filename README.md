@@ -1,372 +1,332 @@
 # hello2cc
 
-`hello2cc` 是一个面向 Claude Code 的静默型、native-first 插件。
+[![npm version](https://img.shields.io/npm/v/hello2cc.svg)](https://www.npmjs.com/package/hello2cc)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](./LICENSE)
+[![Publish](https://img.shields.io/github/actions/workflow/status/hellowind777/hello2cc/publish.yml?label=publish)](https://github.com/hellowind777/hello2cc/actions/workflows/publish.yml)
 
-它不负责 provider、gateway、账号权限或模型接入；它负责的是：
+Make third-party models work inside Claude Code as close to Opus as the plugin layer can drive them.
 
-**当你已经把外部模型接进 Claude Code 后，让它更像原生 Claude Code 一样使用工具、Agent、计划、任务、MCP 和团队能力。**
+`hello2cc` does **not** replace your model gateway, provider mapping, or account permissions.  
+Its job is simpler:
 
-当前版本：`0.2.8`
+> If you already connected GPT, Kimi, DeepSeek, Gemini, Qwen, or other third-party models to Claude Code, `hello2cc` keeps pushing them toward Opus-compatible Claude Code behavior: native capability priorities, tool and agent choice, team/task workflow use, failure recovery, and output style.
 
----
-
-## 一句话理解
-
-如果你已经通过以下任一方式把模型接进 Claude Code：
-
-- CCSwitch
-- provider profile
-- API gateway
-- 原生槽位映射
-
-那么 `hello2cc` 解决的是下一层问题：
-
-> **如何让这个模型在 Claude Code 里更自然地工作，而不是只“能连上”。**
+**Language:** English | [简体中文](./README_CN.md)
 
 ---
 
-## 它能带来什么
+## 🆕 What changed in 0.5.0
 
-| 方向 | 你能感受到的变化 |
+Compared with `0.4.9`, this release changes how `hello2cc` coexists with surfaced host skills and workflows:
+
+| 0.5.0 note | What you should notice |
 |---|---|
-| 原生工具使用 | 更主动使用 Claude Code 原生工具，而不是总想绕去别的路径 |
-| ToolSearch | 更自然地把 `ToolSearch` 作为能力确认入口 |
-| 规划与任务 | 非 trivial 任务更倾向先进入 `EnterPlanMode()`；只有真的需要任务盘时再使用 `Task*` |
-| 原生 Agent | 更自然地调用 `Explore`、`Plan`、`General-Purpose`、`Claude Code Guide` |
-| 多 worker 协作 | 普通并行任务优先并行多个原生 `Agent` worker，而不是轻易误进 team |
-| TeamCreate | 只有明确需要团队编排时才使用 `TeamCreate` / `TeamDelete` |
-| 用户交互 | 单一真实决策阻塞时，更自然地使用 `AskUserQuestion` |
-| MCP / connected tools | 更自然地优先 `ListMcpResources` / `ReadMcpResource` 与原生 MCP 路径 |
-| 输出风格 | 更接近 Claude Code 原生的简洁、行动优先、结构化表达 |
-| 语言跟随 | 中文会话更倾向持续中文输出，减少无故切到英文和元叙述 |
+| Visible host skills/workflows can own the main flow | Plugins such as `superpowers` are less likely to be overridden by a parallel hello2cc playbook |
+| Native output style still stays on | Even when a host workflow leads, replies remain closer to Claude Code / Opus-style presentation |
+| Tool semantics and protocol adaptation remain active | Third-party models still benefit from native tool-use hints, parameter cleanup, and failure debounce |
+| Session-start injected bootstrap skill docs are surfaced | `using-superpowers`-style bootstrap content can be recognized as a real host skill surface |
 
 ---
 
-## 适合谁
+## 🎯 Why use hello2cc?
 
-如果你符合下面任一场景，`hello2cc` 会比较有价值：
-
-- 你已经把外部模型映射进 Claude Code 的 `opus / sonnet / haiku` 体系
-- 你希望模型更主动地用原生工具、计划、Agent 和 MCP
-- 你不想每轮手动加载 skills
-- 你希望普通对话不要误触发 agent team
-- 你希望中文会话尽量保持中文输出
-- 你希望插件尽量安静，不强行改写你现有工作流
-
----
-
-## 它不做什么
-
-`hello2cc` 不会：
-
-- 接管你的 provider / gateway / CCSwitch 配置
-- 替宿主打开本来不存在的能力
-- 覆盖你已经显式传入的 `model`
-- 接管 CCSwitch 的 `Thinking` / 推理模型映射
-- 强迫你进入一套插件专属工作流
-- 覆盖高优先级的 `CLAUDE.md` / `AGENTS.md` / 项目规则 / 用户明确要求
-
-对于 `WebSearch` 也是同样的边界：
-
-- 不会因为你用了自定义代理 / gateway 就直接替你禁用 `WebSearch`
-- 不会替宿主凭空创造本来不存在的联网能力
-- 只会尽量提醒模型：**只有拿到真实搜索条目 / 来源时，才把结果当成已经联网搜索**
-
-它追求的是：
-
-**静默增强原生感，而不是接管 Claude Code。**
+| Common problem | What hello2cc improves |
+|---|---|
+| A matching skill or workflow already exists, but the model keeps rewriting the process | Encourages the model to continue with the surfaced or already-loaded workflow |
+| The session already exposes MCP resources or tools, but the model still takes a detour | Nudges the model toward the most direct path first |
+| Plain parallel workers get confused with team or teammate semantics | Reduces avoidable agent routing mistakes |
+| The model can answer, but does not pick the right Claude Code capability | Pushes tool, agent, workflow, and MCP choice back toward native Claude Code priorities |
+| The model depends too much on wording or keyword hints | Switches to language-agnostic semantic matching inside host-exposed candidate boundaries |
+| The output style drifts away from native Opus | Forces a tighter Claude Code-native result style |
+| The model drifts into verbose meta narration | Keeps responses closer to concise native Claude Code style |
 
 ---
 
-## 快速开始
+## ✅ Best for / ❌ Not for
 
-### 1. 添加本地 marketplace
+### ✅ Best for
+
+- You already use Claude Code with third-party models through **CCSwitch** or another mapping layer
+- You want those models to behave more like a native Claude Code session
+- You have skills, workflows, MCP servers, or plugins installed and want them to be used more reliably
+- You want parallel agent work to choose a more appropriate path
+
+### ❌ Not for
+
+- Setting up provider accounts, API keys, or gateway access
+- Exposing tools that Claude Code did not expose in the first place
+- Replacing **CCSwitch**
+- Overriding higher-priority repository rules such as `CLAUDE.md`, `AGENTS.md`, or direct user instructions
+
+---
+
+## 📊 By the numbers
+
+| Item | Value |
+|---|---|
+| Install flow | 3 steps |
+| Extra command required after install | 0 |
+| Common config profiles | 2 |
+| Main goal | 1 — make third-party models behave more like native Claude Code / Opus sessions |
+
+---
+
+## ✨ What it helps with
+
+<table>
+<tr>
+<td width="50%">
+
+### Skills & workflows
+
+Better continuity when a workflow is already visible or already in progress.
+
+</td>
+<td width="50%">
+
+### Tools & MCP
+
+Stronger preference for capabilities that are already available in the session.
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### Agents & teams
+
+Keeps one-shot parallel work on ordinary agent paths, while sustained collaboration is more likely to use a real team + task-board flow.
+
+</td>
+<td width="50%">
+
+### Cleaner interaction
+
+Less unnecessary meta narration and fewer avoidable routing mistakes.
+
+</td>
+</tr>
+</table>
+
+---
+
+## 🚀 Quick start
+
+### 1) Clone this repository
 
 ```bash
-claude plugin marketplace add "D:\GitHub\dev\hello2cc"
+git clone https://github.com/hellowind777/hello2cc.git
+cd hello2cc
 ```
 
-### 2. 安装插件
+### 2) Add the local marketplace
 
 ```bash
-claude plugin install hello2cc@hello2cc-local
+claude plugins marketplace add "<repo-path>"
 ```
 
-### 3. 重新打开 Claude Code 会话
+Replace `<repo-path>` with your local `hello2cc` repository path.
 
-安装后通常不需要手动切 output style，也不需要再加载任何额外入口。
-
-默认会自动生效的内容：
-
-- 主线程使用 `hello2cc:native`
-- 插件输出风格自动启用
-- 优先原生工具、原生 Agent、原生计划 / 任务路径
-- 关键 Agent 路径尽量保持与当前会话模型语义一致
-
----
-
-## 重装 / 清缓存 / 升级
-
-如果你修改了本地仓库，或者想彻底清理旧版本缓存，推荐顺序：
-
-### 1. 卸载旧插件
+### 3) Install the plugin
 
 ```bash
-claude plugin uninstall --scope user hello2cc@hello2cc-local
+claude plugins install hello2cc@hello2cc-local
 ```
 
-### 2. 移除旧 marketplace（可选但推荐）
+Then reopen Claude Code or run `/reload-plugins`.
 
-```bash
-claude plugin marketplace remove hello2cc-local
-```
+### Expected result
 
-### 3. 重新添加 marketplace
-
-```bash
-claude plugin marketplace add "D:\GitHub\dev\hello2cc"
-```
-
-### 4. 重新安装
-
-```bash
-claude plugin install hello2cc@hello2cc-local
-```
-
-### 5. 建议重开会话
-
-如果你刚更新了仓库内容，建议：
-
-- 重新打开 Claude Code
-- 或执行 `/reload`
-
-这样更容易拿到最新缓存内容。
+- No extra manual entry point is required
+- Installing the plugin does not write `agent=hello2cc:native` into Claude Code settings
+- Plugin enablement stays under Claude Code's own plugin state, not a plugin-shipped `settings.json`
+- Third-party models are more likely to use session-visible capabilities directly
+- Ordinary parallel agents are less likely to be misrouted
+- Team/subagent sessions are less likely to suffer from oversized injected context
 
 ---
 
-## 与 CCSwitch 配合的推荐方式
+## 🔧 Recommended configuration
 
-这是最推荐的组合：
+### Option A — Keep the default strong alignment
 
-### CCSwitch 负责
-
-- 主模型
-- 推理模型（Thinking）
-- `Haiku 默认模型`
-- `Sonnet 默认模型`
-- `Opus 默认模型`
-
-### hello2cc 负责
-
-- 原生工具 / Agent / 计划 / 任务 / MCP 使用习惯
-- `Agent.model` 的宿主安全槽位处理
-- 普通 worker 与 team workflow 的边界净化
-- worktree 使用边界
-- 与其他 orchestration 插件的兼容模式
-
-### 最佳实践
-
-如果你想让 Opus 家族最终落到 `opus(1M)`：
-
-- 在 **CCSwitch** 里把 **Opus 默认模型** 配成 `opus(1M)`
-- 在 **hello2cc** 里继续使用 `opus`
-
-也就是说：
-
-- hello2cc 只负责写宿主安全槽位
-- CCSwitch 决定这个槽位最终映射到哪个实际模型
-
----
-
-## 推荐配置方案
-
-### 方案 A：最省心
-
-适合：你已经用 CCSwitch / gateway 把模型映射好了，只想让行为更接近原生。
-
-建议：
-
-- `mirror_session_model = true`
-- 其他模型覆盖项尽量留空
-
-效果：
-
-- 主线程跟随当前会话模型语义
-- `Claude Code Guide` / `Explore` 等关键路径必要时跟随当前会话语义
-- `Plan` / `General-Purpose` 等路径尽量保留原生习惯
-
-### 方案 B：只修正少数 Agent
-
-适合：你只想调整某几个 Agent 的默认槽位。
-
-建议：
-
-- `mirror_session_model = true`
-- 按需填写 `guide_model`、`explore_model`、`general_model`、`team_model`
-- 其他覆盖项留空
-
-### 方案 C：统一设一个默认 Agent 模型
-
-适合：你想让多数 Agent 都稳定落到某个家族槽位。
-
-例如：
-
-- `default_agent_model = opus`
-
-或者：
-
-- `default_agent_model = inherit`
-
----
-
-## 配置项说明
-
-| 配置键 | 默认行为 | 说明 |
-|---|---|---|
-| `routing_policy` | `native-inject` | `native-inject` 会在需要时静默补 `Agent.model`；`prompt-only` 只做行为引导，不改工具输入 |
-| `mirror_session_model` | `true` | 优先镜像当前会话模型语义 |
-| `default_agent_model` | 空 | 原生 Agent 的统一默认模型偏好；推荐填写 `inherit / opus / sonnet / haiku` |
-| `primary_model` | 空 | 高能力原生 Agent 的显式槽位 |
-| `subagent_model` | 空 | 为未显式设模的原生 Agent 提供统一槽位 |
-| `guide_model` | 空 | `Claude Code Guide` 的显式槽位 |
-| `explore_model` | 空 | `Explore` 的显式槽位 |
-| `plan_model` | 空 | `Plan` 的显式槽位 |
-| `general_model` | 空 | `General-Purpose` 的显式槽位 |
-| `team_model` | 空 | 真实 team teammate 的显式槽位 |
-| `compatibility_mode` | `full` | 与其他 orchestration 插件冲突时可切到 `sanitize-only`，只保留参数净化 |
-
----
-
-## 关于 `opus(1M)` 的正确理解
-
-`hello2cc` 推荐你直接填写 Claude Code 宿主安全槽位：
-
-- `inherit`
-- `opus`
-- `sonnet`
-- `haiku`
-
-如果你兼容性地填写了：
-
-- `opus(1M)`
-
-`hello2cc` 会在真正写入 `Agent.model` 时自动归一化为：
-
-- `opus`
-
-也就是说：
-
-- **hello2cc 可以识别 `opus(1M)`**
-- **但不会把 `opus(1M)` 原样写进 `Agent.model`**
-
-真正的 `opus -> opus(1M)` 落点，应该继续交给 CCSwitch 的 **Opus 默认模型** 去处理。
-
----
-
-## 关于 worktree 的行为
-
-`hello2cc` 当前的策略是：
-
-- **只有用户明确要求 worktree / 隔离工作区时**，才保留 `worktree` 相关路径
-- 普通并行 worker 不再默认误带 `worktree`
-
-这能减少并发 subagent 时出现：
-
-- worktree 创建失败
-- `.git/config.lock` 竞争
-- UI 显示 `0 tool uses` 但其实 agent 没真正开始工作
-
----
-
-## 关于与其他插件共存
-
-如果你同时启用了 OMC 或其他也会大量注入 hooks / system-reminder 的插件，建议尝试：
+Good when your model mapping is already handled by **CCSwitch** and you want hello2cc to stay on its default strong alignment path.
 
 ```json
 {
-  "compatibility_mode": "sanitize-only"
+  "mirror_session_model": true
 }
 ```
 
-启用后：
+### Option B — Set a stable default agent slot
 
-- 保留 `model / team / isolation` 这类参数净化
-- 不再继续注入 `SessionStart / UserPromptSubmit / SubagentStart` 的额外上下文
+Good when you want most agents to use the same Claude slot.
 
-这更适合多插件并存环境。
-
----
-
-## 常见问题
-
-### 安装后还需要手动切 output style 吗？
-
-通常不需要。
-
-### hello2cc 要不要接管 CCSwitch 的 Thinking 模型？
-
-不建议。
-
-`Thinking` 更适合继续由 CCSwitch / 主线程模型配置负责；hello2cc 只处理原生 Agent 行为层。
-
-### 可以直接把第三方别名写进 hello2cc 吗？
-
-不推荐。
-
-更推荐：
-
-- 在 CCSwitch / provider / gateway 层处理实际模型映射
-- 在 hello2cc 里只写 Claude Code 宿主安全槽位
-
-### 普通并行任务为什么不推荐默认走 team？
-
-因为普通 worker 和持久 team 是两种不同语义。
-
-普通并行任务更适合：
-
-- 多个原生 `Agent` worker 并行
-- 完成后回传结果
-
-而不是一上来就进入 `TeamCreate`
-
-### 会不会影响已有项目规则？
-
-设计目标是不影响。
-
-只要更高优先级规则已经定义了格式、流程、命令路由或输出习惯，hello2cc 会尽量让位。
-
-### 如果我后面用 helloswitch 增强代理，让第三方模型真正支持 Claude Code 的 WebSearch / tools，会不会和 hello2cc 冲突？
-
-不会。
-
-`hello2cc` 不会因为你使用了代理就硬禁用 `WebSearch` 或普通工具调用。  
-它做的是更轻的“真实性保护”：
-
-- 如果真实拿到了搜索条目 / 来源，就正常按联网结果组织回答
-- 如果界面出现 `Did 0 searches`、没有来源、没有真实搜索结果，就不要把记忆包装成“已经搜过”
-
-所以如果你的代理后续真的被增强到能正确支持 Claude Code 的工具协议，`hello2cc` 不会挡住这条路径。
-
----
-
-## 本地验证
-
-```bash
-npm run validate
-npm test
-npm run check
-npm run test:real
+```json
+{
+  "mirror_session_model": true,
+  "default_agent_model": "opus"
+}
 ```
 
-说明：
+If your real target model is mapped through **CCSwitch**, keep the actual mapping there.  
+In `hello2cc`, prefer stable Claude slot values such as `inherit`, `opus`, `sonnet`, or `haiku`.
 
-- `npm run validate`：校验 manifest、hooks、settings、脚本结构
-- `npm test`：运行自动化测试
-- `npm run check`：组合执行 `validate + test`
-- `npm run test:real`：调用本机 Claude Code CLI 做真实回归
+### What 0.5.0 especially improves
+
+- Keeps hello2cc's native output shell active without forcing a private workflow
+- Lets surfaced host skills/workflows lead the main flow when they are the better owner
+- Continues native-style tool semantics, protocol cleanup, and repeated-failure debounce
+- Improves coexistence with session-start bootstrap skills and workflow plugins
 
 ---
 
-## 许可证
+## 🔧 How it fits into your workflow
+
+```mermaid
+flowchart LR
+    A[Third-party model already connected in Claude Code] --> B[Open a normal Claude Code session]
+    B --> C[Session exposes tools, agents, skills, workflows, or MCP]
+    C --> D[hello2cc helps the model choose the path more naturally]
+    D --> E[Fewer detours and cleaner agent routing]
+
+    style A fill:#e3f2fd
+    style B fill:#e3f2fd
+    style C fill:#fff3e0
+    style D fill:#e8f5e9
+    style E fill:#4caf50,color:#fff
+```
+
+---
+
+## 🛠️ Reinstall / upgrade
+
+If you changed the local repository or want a clean reinstall:
+
+```bash
+claude plugins uninstall --scope user hello2cc@hello2cc-local
+claude plugins marketplace remove hello2cc-local
+claude plugins marketplace add "<repo-path>"
+claude plugins install hello2cc@hello2cc-local
+```
+
+Then reopen Claude Code or run `/reload-plugins`.
+
+---
+
+## 🛠️ Troubleshooting
+
+### The plugin seems inactive
+
+Try these in order:
+
+1. Reopen Claude Code or run `/reload-plugins`
+2. Confirm the plugin is installed and enabled
+3. If you upgraded from a local clone, reinstall it cleanly
+
+### `hello2cc:native` still shows after disable or `/reload`
+
+That banner can persist in the current or resumed session because Claude Code keeps session agent state separately from plugin enablement.
+Current `hello2cc` no longer ships a plugin-side `settings.json` to force `agent=hello2cc:native`, so a clean reinstall or a fresh session stops new unintended agent injection.
+
+### The model still ignores a skill, tool, or MCP resource
+
+Check whether:
+
+1. That capability is actually exposed in the current session
+2. A higher-priority project rule or user instruction is restricting it
+3. You are continuing the same workflow instead of starting a different one
+4. If a plugin injects a bootstrap skill at session start, update to `0.5.0` or later so hello2cc can surface that skill boundary instead of competing with it
+
+### Multiple plugins feel noisy together
+
+From `0.5.0`, hello2cc keeps its output-style shell and tool semantics active, but it no longer needs to own every main-thread workflow.  
+If another plugin surfaces a real skill/workflow owner, hello2cc now yields the main flow more cleanly instead of fighting it with a parallel execution playbook.
+
+### You still hit `summary is required when message is a string`
+
+Update to the latest version, reload the session, and reinstall if needed.  
+Recent versions add a compatibility layer for plain-text `SendMessage`.
+
+### Team retries show a hello2cc red deny after a missing or deleted team
+
+Update to `0.5.0`, then reload the plugin cleanly.  
+Current versions remove the plugin-side pre-deny for explicit teammate retries, so missing-team handling falls back to Claude Code's native team error path instead.
+
+### Current-info or compare tasks keep missing web results
+
+Update to `0.4.6` or later, then reload the plugin cleanly.  
+Recent versions tighten short-query shaping and treat `Did 0 searches` as an empty search attempt instead of a successful result.
+
+---
+
+## ❓ FAQ
+
+<details>
+<summary><strong>Does hello2cc replace CCSwitch?</strong></summary>
+
+No. Keep model mapping in CCSwitch. hello2cc focuses on what happens after the model is already running inside Claude Code.
+
+</details>
+
+<details>
+<summary><strong>Does it enable tools that Claude Code did not expose?</strong></summary>
+
+No. It only helps the model use capabilities that are already available in the current session.
+
+</details>
+
+<details>
+<summary><strong>Do I need to switch an output style manually?</strong></summary>
+
+Usually no. After installation, it should work without an extra manual entry point.
+
+</details>
+
+<details>
+<summary><strong>Will installation force-select <code>hello2cc:native</code> for the current thread?</strong></summary>
+
+No. The plugin ships the native agent as an available option, but it no longer injects a default `agent` setting into Claude Code.
+
+</details>
+
+<details>
+<summary><strong>Will it block my existing skills, plugins, or MCP servers?</strong></summary>
+
+No. The goal is the opposite: make those existing capabilities easier for third-party models to discover and use.
+
+</details>
+
+<details>
+<summary><strong>Does every multi-agent task become a team?</strong></summary>
+
+No. One-shot parallel work can stay on ordinary agent paths. More sustained collaboration is more likely to use a team flow.
+
+</details>
+
+<details>
+<summary><strong>Do I need to set a default agent model?</strong></summary>
+
+Only if you want a stable default Claude slot for most agents. If your mapping is already managed well elsewhere, you can keep the config minimal.
+
+</details>
+
+<details>
+<summary><strong>Can I still switch hello2cc into a lightweight compatibility-only mode?</strong></summary>
+
+No. The current direction keeps hello2cc as a default strong alignment layer instead of falling back to a thin sanitize-only shim.
+
+</details>
+
+---
+
+## 📞 Support
+
+- Issues: https://github.com/hellowind777/hello2cc/issues
+- Releases: https://github.com/hellowind777/hello2cc/releases
+
+---
+
+## 📜 License
 
 Apache-2.0
