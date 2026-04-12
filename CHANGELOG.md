@@ -1,5 +1,11 @@
 # 更新日志
 
+## 0.5.6 - 2026-04-12
+
+- 新增 `ccstatusline` 兼容桥接命令，可在不修改 Claude Code / ccstatusline 源码的前提下，把 hello2cc 第三方模型场景里的 transcript usage 回填到 status line JSON
+- 回填主会话与已引用 subagent transcript 的 `current_usage`、输入/输出 token 总量与上下文占用百分比，避免 `ccstatusline` 进度条在缺失/为 0 的宿主字段上一直显示 0
+- 补充桥接命令、过滤器和 subagent usage 聚合回归测试，并新增中文接入说明
+
 ## 0.5.5 - 2026-04-12
 
 - 修复非显式持续协作请求下 `TeamCreate` 被误放行的问题，普通单次 worker / 一次性实现任务会在 `pre-team-create` 被拦回 plain `Agent` 路径
