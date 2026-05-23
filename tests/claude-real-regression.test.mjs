@@ -32,20 +32,17 @@ function createPluginCache(root) {
     name: 'hello2cc',
     version: '0.2.3',
   }), 'utf8');
-  writeFileSync(join(pluginPath, 'settings.json'), JSON.stringify({
-    agent: 'hello2cc:native',
-  }), 'utf8');
   writeFileSync(join(pluginPath, 'agents', 'native.md'), '# hello2cc native\n', 'utf8');
   writeFileSync(join(pluginPath, 'output-styles', 'hello2cc-native.md'), '---\nforce-for-plugin: true\n---\n', 'utf8');
   return pluginPath;
 }
 
-function createSuccessfulStream(pluginPath) {
+function createSuccessfulStream(pluginPath, tools = ['ToolSearch', 'Task', 'TaskOutput', 'TaskStop']) {
   const initLine = {
     type: 'system',
     subtype: 'init',
     plugins: [{ name: 'hello2cc', path: pluginPath }],
-    tools: ['ToolSearch', 'Task', 'TaskOutput', 'TaskStop'],
+    tools,
     agents: ['Explore', 'Plan', 'General-Purpose', 'hello2cc:native'],
   };
   const hookLine = {
@@ -53,7 +50,7 @@ function createSuccessfulStream(pluginPath) {
     subtype: 'hook_response',
     output: JSON.stringify({
       hookSpecificOutput: {
-        additionalContext: 'Claude Code Guide\nToolSearch',
+        additionalContext: '# hello2cc\n\n## 宿主状态快照\n```json\n{\n  "operator_profile": "opus-compatible-claude-code",\n  "protocol_adapters": {\n    "semantic_routing": "host_guarded_model_decides"\n  },\n  "host": {\n    "tools": [\n      "ToolSearch"\n    ]\n  }\n}\n```',
       },
     }),
   };
@@ -226,6 +223,20 @@ test('real regression falls back to PATH Claude binary when claude.ps1 is missin
   assert.equal(result.status, 0);
   assert.match(result.stdout, /OK real-session baseline/);
   assert.match(readFileSync(logPath, 'utf8'), /^plugins --help/m);
+});
+
+test('real regression accepts Agent-only init surfaces after the Task rename', () => {
+  const { root } = isolatedEnv();
+  const pluginPath = createPluginCache(root);
+  const { env: fakeEnv } = createFakeClaudeEnv({
+    streamJsonl: createSuccessfulStream(pluginPath, ['ToolSearch', 'Agent', 'TaskOutput', 'TaskStop']),
+  });
+
+  const result = runRealRegression(fakeEnv);
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /OK real-session baseline/);
+  assert.match(result.stdout, /OK real-session repeat/);
 });
 
 test('real regression preserves original failure when restore also fails', () => {
